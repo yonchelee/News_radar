@@ -5,12 +5,12 @@ http://localhost:11434/api/chat 엔드포인트를 사용한다.
 from __future__ import annotations
 
 import json
+import os
 from typing import Iterator
 
 import requests
-
-OLLAMA_BASE_URL = "http://localhost:11434"
-DEFAULT_MODEL = "gemma3"
+OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
+DEFAULT_MODEL = os.getenv("OLLAMA_MODEL", "gemma3")
 
 SYSTEM_PROMPT = (
     "너는 삼성/LG 등 전자/모빌리티 기업의 '선행기구개발 그룹'에서 일하는 시니어 "
