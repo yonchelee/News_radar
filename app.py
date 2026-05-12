@@ -3,29 +3,20 @@
 3컬럼 레이아웃:
   좌측  - 실시간 뉴스 피드 (1시간 캐시, 위로 흐르는 애니메이션)
   중간  - Gemma 3 컨트롤러 (채팅)
-  우측  - 선택된 기사 요약 + PPT 생성
-사이드바:
-  - Ollama 설정
-  - 이메일 알림 설정 (수신자, 발송 주기, 테스트 발송)
+  우측  - 감성 분석 요약 + 선택 기사 요약 + PPT 생성
 """
 from __future__ import annotations
 
 import html
 import re
-import time
 from datetime import datetime
-from pathlib import Path
 
 import streamlit as st
-from dotenv import dotenv_values, set_key
 
 import analyst
-import email_dispatcher
 import gemma_client
 import news_crawler
 from ppt_generator import build_pptx
-
-_ENV_PATH = Path(__file__).parent / ".env"
 
 
 st.set_page_config(
@@ -133,41 +124,15 @@ st.markdown(GLOBAL_CSS, unsafe_allow_html=True)
 # ---------------------------------------------------------------------------
 # 세션 상태 초기화
 # ---------------------------------------------------------------------------
-def _load_env_email_config() -> dict:
-    """저장된 .env 파일에서 이메일 설정을 읽어 dict 반환."""
-    if not _ENV_PATH.exists():
-        return {}
-    return dotenv_values(_ENV_PATH)
-
-
-def _save_env_value(key: str, value: str) -> None:
-    """특정 환경변수 값을 .env 파일에 저장."""
-    set_key(str(_ENV_PATH), key, value)
-
-
 def _init_state() -> None:
     ss = st.session_state
     ss.setdefault("articles", [])
     ss.setdefault("selected_idx", None)
     ss.setdefault("summary", "")
-    ss.setdefault("chat_history", [])  # [{role, content}]
+    ss.setdefault("chat_history", [])
     ss.setdefault("model_name", gemma_client.DEFAULT_MODEL)
     ss.setdefault("ollama_url", gemma_client.OLLAMA_BASE_URL)
     ss.setdefault("last_refresh", None)
-
-    # 이메일 관련 세션 상태
-    env = _load_env_email_config()
-    ss.setdefault("email_recipients", env.get("EMAIL_RECIPIENTS", ""))
-    ss.setdefault("smtp_user", env.get("SMTP_USER", ""))
-    ss.setdefault("smtp_password", env.get("SMTP_PASSWORD", ""))
-    ss.setdefault("smtp_host", env.get("SMTP_HOST", "smtp.gmail.com"))
-    ss.setdefault("smtp_port", int(env.get("SMTP_PORT", "587")))
-    ss.setdefault("email_send_hour", 9)
-    ss.setdefault("email_enabled", bool(env.get("SMTP_USER")))
-    ss.setdefault("last_email_sent_ts", None)
-    ss.setdefault("last_trigger_check", None)
-    ss.setdefault("email_status_msg", "")
-    ss.setdefault("triggered_articles", [])
 
 
 _init_state()
@@ -223,84 +188,6 @@ with st.sidebar:
     st.markdown("---")
     refresh_clicked = st.button("🔄 지금 새로고침", use_container_width=True)
 
-    # ─────────────────────────────────────────────
-    # 이메일 알림 설정
-    # ─────────────────────────────────────────────
-    st.markdown("---")
-    st.markdown("### 📧 이메일 알림 설정")
-
-    with st.expander("SMTP 계정 설정", expanded=not st.session_state.smtp_user):
-        smtp_user_input = st.text_input(
-            "Gmail 주소",
-            value=st.session_state.smtp_user,
-            placeholder="your_gmail@gmail.com",
-            key="smtp_user_input",
-        )
-        smtp_pw_input = st.text_input(
-            "Gmail App Password",
-            value=st.session_state.smtp_password,
-            type="password",
-            placeholder="앱 비밀번호 16자리",
-            key="smtp_pw_input",
-            help="Gmail → 계정설정 → 보안 → 앱 비밀번호에서 생성",
-        )
-        if st.button("💾 SMTP 설정 저장", use_container_width=True, key="save_smtp"):
-            st.session_state.smtp_user = smtp_user_input
-            st.session_state.smtp_password = smtp_pw_input
-            _save_env_value("SMTP_USER", smtp_user_input)
-            _save_env_value("SMTP_PASSWORD", smtp_pw_input)
-            _save_env_value("SMTP_HOST", "smtp.gmail.com")
-            _save_env_value("SMTP_PORT", "587")
-            st.success("SMTP 설정이 .env 에 저장되었습니다.")
-
-    recipients_input = st.text_input(
-        "수신 이메일 주소",
-        value=st.session_state.email_recipients,
-        placeholder="addr1@example.com,addr2@example.com",
-        help="쉼표로 여러 주소 입력 가능",
-        key="email_recipients_input",
-    )
-    if recipients_input != st.session_state.email_recipients:
-        st.session_state.email_recipients = recipients_input
-        _save_env_value("EMAIL_RECIPIENTS", recipients_input)
-
-    send_hour = st.slider(
-        "정기 발송 시각 (시)",
-        min_value=0,
-        max_value=23,
-        value=st.session_state.email_send_hour,
-        format="%d시",
-        key="email_send_hour_slider",
-    )
-    st.session_state.email_send_hour = send_hour
-
-    # 알림 활성화 토글
-    email_enabled = st.toggle(
-        "이메일 알림 활성화",
-        value=st.session_state.email_enabled,
-        key="email_enabled_toggle",
-    )
-    st.session_state.email_enabled = email_enabled
-
-    if st.session_state.last_email_sent_ts:
-        last_sent_dt = datetime.fromtimestamp(st.session_state.last_email_sent_ts)
-        st.caption(f"마지막 발송: {last_sent_dt.strftime('%m/%d %H:%M')}")
-
-    if st.session_state.email_status_msg:
-        msg = st.session_state.email_status_msg
-        if msg.startswith("✅"):
-            st.success(msg)
-        elif msg.startswith("❌"):
-            st.error(msg)
-        else:
-            st.info(msg)
-
-    col_test, col_now = st.columns(2)
-    with col_test:
-        test_btn = st.button("✉️ 테스트 발송", use_container_width=True, key="test_email_btn")
-    with col_now:
-        send_now_btn = st.button("📤 지금 발송", use_container_width=True, key="send_now_btn")
-
 
 # ---------------------------------------------------------------------------
 # 헤더
@@ -319,122 +206,15 @@ st.markdown(
 # ---------------------------------------------------------------------------
 # 뉴스 새로고침 (1시간 캐시)
 # ---------------------------------------------------------------------------
-def _build_email_config() -> email_dispatcher.EmailConfig:
-    """세션 상태에서 EmailConfig 생성."""
-    recipients = [
-        r.strip()
-        for r in st.session_state.email_recipients.split(",")
-        if r.strip()
-    ]
-    return email_dispatcher.EmailConfig(
-        smtp_host=st.session_state.smtp_host,
-        smtp_port=st.session_state.smtp_port,
-        smtp_user=st.session_state.smtp_user,
-        smtp_password=st.session_state.smtp_password,
-        recipients=recipients,
-    )
-
-
-def _do_send_report(report_type: str = "scheduled", trigger_keyword: str | None = None) -> None:
-    """리포트 분석 후 이메일 발송."""
-    if not st.session_state.articles:
-        st.session_state.email_status_msg = "❌ 수집된 기사가 없습니다. 먼저 새로고침하세요."
-        return
-    config = _build_email_config()
-    summary = analyst.analyze_articles(st.session_state.articles)
-    with st.spinner("이메일 발송 중..."):
-        ok, msg = email_dispatcher.send_report(
-            summary, config, report_type=report_type, trigger_keyword=trigger_keyword
-        )
-    if ok:
-        st.session_state.last_email_sent_ts = time.time()
-        st.session_state.email_status_msg = f"✅ {msg}"
-    else:
-        st.session_state.email_status_msg = f"❌ {msg}"
-
-
-def _check_triggers(articles: list) -> None:
-    """긴급 트리거 키워드 확인 후 조건 충족 시 즉시 발송."""
-    if not st.session_state.email_enabled:
-        return
-    triggered = analyst.find_triggered_articles(articles)
-    if not triggered:
-        st.session_state.triggered_articles = []
-        return
-
-    new_triggered = [
-        a for a in triggered
-        if a.link not in {t.link for t in st.session_state.triggered_articles}
-    ]
-    if not new_triggered:
-        return
-
-    st.session_state.triggered_articles = triggered
-    # 첫 번째 트리거 키워드 추출
-    from analyst import _get_urgent_keywords
-    urgent_kws = _get_urgent_keywords()
-    found_kw = None
-    for art in new_triggered:
-        text = f"{art.title} {art.summary_raw}".lower()
-        for kw in urgent_kws:
-            if kw.lower() in text:
-                found_kw = kw
-                break
-        if found_kw:
-            break
-
-    config = _build_email_config()
-    if config.is_valid():
-        summary = analyst.analyze_articles(articles)
-        ok, msg = email_dispatcher.send_report(
-            summary, config, report_type="urgent", trigger_keyword=found_kw
-        )
-        if ok:
-            st.session_state.last_email_sent_ts = time.time()
-            st.session_state.email_status_msg = (
-                f"✅ 긴급 트리거 '{found_kw}' 감지 → 즉시 발송 완료"
-            )
-        else:
-            st.session_state.email_status_msg = f"❌ 긴급 발송 실패: {msg}"
-
-
 def refresh_articles(force: bool = False) -> None:
     with st.spinner("뉴스 피드를 수집 중입니다..."):
         articles = news_crawler.get_cached_articles(force_refresh=force)
     st.session_state.articles = articles
     st.session_state.last_refresh = datetime.now()
-    # 새 기사 수집 후 트리거 확인
-    if st.session_state.email_enabled:
-        _check_triggers(articles)
 
 
 if refresh_clicked or not st.session_state.articles:
     refresh_articles(force=refresh_clicked)
-
-# ─────────────────────────────────────────────
-# 사이드바 버튼 액션 처리 (상태 업데이트 후)
-# ─────────────────────────────────────────────
-if "test_btn" in st.session_state and test_btn:
-    test_addr = st.session_state.email_recipients.split(",")[0].strip()
-    if not test_addr:
-        st.session_state.email_status_msg = "❌ 수신 이메일 주소를 먼저 입력하세요."
-    else:
-        config = _build_email_config()
-        with st.spinner(f"{test_addr} 으로 테스트 메일 발송 중..."):
-            ok, msg = email_dispatcher.send_test_email(test_addr, config)
-        st.session_state.email_status_msg = ("✅ " if ok else "❌ ") + msg
-
-if "send_now_btn" in st.session_state and send_now_btn:
-    _do_send_report(report_type="scheduled")
-
-# 정기 발송 스케줄 체크 (페이지 렌더링 시마다)
-if st.session_state.email_enabled:
-    if email_dispatcher.should_send_scheduled(
-        st.session_state.email_send_hour,
-        0,
-        st.session_state.last_email_sent_ts,
-    ):
-        _do_send_report(report_type="scheduled")
 
 
 # ---------------------------------------------------------------------------
@@ -471,7 +251,6 @@ with col_left:
                     <div class='src'>{safe_src}</div>
                 </div>"""
             )
-        # 무한 루프 효과를 위해 한 번 더 복제
         items_html = "".join(items_html_parts) * 2
         st.markdown(
             f"<div class='ticker-wrapper'><div class='ticker-track'>{items_html}</div></div>",
@@ -530,7 +309,6 @@ with col_mid:
     prompt_to_send = pending_prompt or user_input
 
     if prompt_to_send:
-        # 선택된 기사 컨텍스트
         selected_article = None
         if st.session_state.selected_idx is not None and st.session_state.articles:
             selected_article = st.session_state.articles[st.session_state.selected_idx]
@@ -549,7 +327,6 @@ with col_mid:
         full_user = context_block + prompt_to_send
         st.session_state.chat_history.append({"role": "user", "content": prompt_to_send})
 
-        # 메시지 구성
         api_messages = [{"role": "system", "content": gemma_client.SYSTEM_PROMPT}]
         for m in st.session_state.chat_history[:-1]:
             api_messages.append(m)
@@ -599,18 +376,6 @@ with col_right:
         pos_pct = int(analysis_summary.positive_ratio * 100)
         neg_pct = int(analysis_summary.negative_ratio * 100)
 
-        sentiment_bar = (
-            f"<div style='display:flex;border-radius:4px;overflow:hidden;height:12px;margin:4px 0 2px;'>"
-            f"<div style='width:{pos_pct}%;background:#059669;'></div>"
-            f"<div style='width:{neg_pct}%;background:#DC2626;'></div>"
-            f"<div style='width:{100-pos_pct-neg_pct}%;background:#374151;'></div>"
-            f"</div>"
-            f"<div style='font-size:11px;color:#94A3B8;display:flex;gap:10px;'>"
-            f"<span style='color:#6EE7B7;'>▲ 긍정 {pos_pct}%</span>"
-            f"<span style='color:#FCA5A5;'>▼ 부정 {neg_pct}%</span>"
-            f"<span>총 {analysis_summary.total}건</span>"
-            f"</div>"
-        )
         urgent_badge = ""
         if analysis_summary.urgent_count:
             urgent_badge = (
@@ -618,12 +383,23 @@ with col_right:
                 f"border-radius:4px;font-size:11px;font-weight:700;margin-left:8px;'>"
                 f"🚨 긴급 {analysis_summary.urgent_count}건</span>"
             )
+
         st.markdown(
-            f"<div style='background:#0F172A;border-radius:8px;padding:10px 14px;"
-            f"margin-bottom:12px;'>"
-            f"<div style='font-size:12px;font-weight:600;color:#94A3B8;margin-bottom:4px;'>"
-            f"감성 분석 요약{urgent_badge}</div>"
-            f"{sentiment_bar}</div>",
+            f"""<div style='background:#0F172A;border-radius:8px;padding:10px 14px;margin-bottom:12px;'>
+              <div style='font-size:12px;font-weight:600;color:#94A3B8;margin-bottom:6px;'>
+                감성 분석 요약{urgent_badge}
+              </div>
+              <div style='display:flex;border-radius:4px;overflow:hidden;height:12px;margin-bottom:5px;'>
+                <div style='width:{pos_pct}%;background:#059669;'></div>
+                <div style='width:{neg_pct}%;background:#DC2626;'></div>
+                <div style='width:{100-pos_pct-neg_pct}%;background:#374151;'></div>
+              </div>
+              <div style='font-size:11px;color:#94A3B8;display:flex;gap:12px;'>
+                <span style='color:#6EE7B7;'>▲ 긍정 {pos_pct}% ({analysis_summary.positive_count}건)</span>
+                <span style='color:#FCA5A5;'>▼ 부정 {neg_pct}% ({analysis_summary.negative_count}건)</span>
+                <span>총 {analysis_summary.total}건</span>
+              </div>
+            </div>""",
             unsafe_allow_html=True,
         )
 
