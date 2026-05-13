@@ -84,13 +84,16 @@ footer, #MainMenu { display:none !important; }
     color:#999999; letter-spacing:.2px;
 }
 
-/* ── Streamlit 버튼 (카테고리 필터 전용) ─ */
+/* ── Streamlit 버튼 공통 ─────────────── */
 div[data-testid="stHorizontalBlock"] button {
     border-radius:4px !important;
-    font-size:11px !important;
+    font-size:10px !important;
     font-weight:600 !important;
-    padding:4px 6px !important;
+    padding:3px 4px !important;
+    line-height:1.35 !important;
     transition:all .12s !important;
+    white-space:pre-wrap !important;   /* \n 줄바꿈 허용 */
+    word-break:keep-all !important;    /* 한글 단어 중간 줄바꿈 방지 */
 }
 button[kind="primary"] {
     background:#1428A0 !important;
@@ -554,13 +557,21 @@ with col_l:
     st.markdown(f"<div class='col-header'>{company_label} 뉴스 · {len(filtered)}건</div>",
                 unsafe_allow_html=True)
 
-    # 상위 3분류 필터 버튼
+    # 상위 3분류 필터 버튼 — 축약 레이블로 한 줄에 맞춤
+    _TOP_SHORT = {
+        "전체": "전체",
+        "기술·개발": "기술개발",
+        "마케팅·출시": "마케팅",
+        "사업·전략": "사업전략",
+        TOP_CATEGORY_GENERAL: "일반",
+    }
     top_cat_opts = ["전체"] + list(ARTICLE_CATEGORIES.keys()) + [TOP_CATEGORY_GENERAL]
     tc_cols = st.columns(len(top_cat_opts))
     for col_tc, tc in zip(tc_cols, top_cat_opts):
         cnt = sum(1 for a in filtered_base if a.top_category == tc) if tc != "전체" else len(filtered_base)
+        lbl = _TOP_SHORT.get(tc, tc)
         if col_tc.button(
-            f"{tc}\n({cnt})",
+            f"{lbl}\n({cnt})",
             key=f"tc_{sel_sector}_{sel_company}_{tc}",
             use_container_width=True,
             type="primary" if sel_top_cat == tc else "secondary",
@@ -569,20 +580,24 @@ with col_l:
             st.session_state.selected_cat = "전체"
             st.rerun()
 
-    # 기술·개발 선택시 세부 카테고리 필터
+    # 기술·개발 선택시 세부 카테고리 필터 — 2행으로 분리, 축약 레이블
     if sel_top_cat == "기술·개발":
         mech_opts = ["전체"] + list(MECH_CATEGORIES.keys())
-        mc_cols = st.columns(len(mech_opts))
-        for col_mc, mc in zip(mc_cols, mech_opts):
-            cnt = sum(1 for a in filtered_top if a.mech_category == mc) if mc != "전체" else len(filtered_top)
-            if col_mc.button(
-                f"{mc}\n({cnt})",
-                key=f"mc_{sel_sector}_{sel_company}_{mc}",
-                use_container_width=True,
-                type="primary" if sel_mech_cat == mc else "secondary",
-            ):
-                st.session_state.selected_cat = mc
-                st.rerun()
+        _per_mc = 5
+        for _ri in range(math.ceil(len(mech_opts) / _per_mc)):
+            _chunk = mech_opts[_ri * _per_mc : (_ri + 1) * _per_mc]
+            mc_cols = st.columns(len(_chunk))
+            for col_mc, mc in zip(mc_cols, _chunk):
+                cnt = sum(1 for a in filtered_top if a.mech_category == mc) if mc != "전체" else len(filtered_top)
+                lbl = mc.split("·")[0] if "·" in mc else mc
+                if col_mc.button(
+                    f"{lbl}\n({cnt})",
+                    key=f"mc_{sel_sector}_{sel_company}_{mc}",
+                    use_container_width=True,
+                    type="primary" if sel_mech_cat == mc else "secondary",
+                ):
+                    st.session_state.selected_cat = mc
+                    st.rerun()
 
     if not filtered:
         st.info("해당 카테고리 기사가 없습니다.")
