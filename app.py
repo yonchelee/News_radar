@@ -84,12 +84,9 @@ footer, #MainMenu { display:none !important; }
     color:#999999; letter-spacing:.2px;
 }
 
-/* ── Streamlit 버튼 공통 (회사 레벨) ── */
-div[data-testid="stHorizontalBlock"] button {
+/* ══ 버튼 공통 기본값 ══════════════════════════════ */
+button {
     border-radius:4px !important;
-    font-size:11px !important;
-    font-weight:600 !important;
-    padding:5px 4px !important;
     line-height:1.35 !important;
     transition:all .12s !important;
     white-space:pre-wrap !important;
@@ -111,43 +108,70 @@ button[kind="secondary"]:hover {
     color:#1428A0 !important;
 }
 
-/* ── 상위 카테고리 필터 버튼 (HBlock 중첩 1단계) ── */
-[data-testid="stHorizontalBlock"] [data-testid="stHorizontalBlock"] button {
+/* ── Lv1: 섹터 버튼 (최상위 첫 번째 HBlock 행) ── */
+div[data-testid="stHorizontalBlock"]:first-of-type button {
+    font-size:13px !important;
+    padding:8px 6px !important;
+    font-weight:700 !important;
+    letter-spacing:0.2px !important;
+}
+
+/* ── Lv2: 회사 버튼 (섹터 다음 최상위 HBlock 행들) ── */
+div[data-testid="stHorizontalBlock"]:not(:first-of-type) > [data-testid="column"] > div > div[data-testid="stButton"] > button {
+    font-size:11px !important;
+    font-weight:600 !important;
+    padding:5px 4px !important;
+}
+
+/* ── Lv3: 상위 카테고리 필터 (3열 레이아웃 내부 첫 번째 HBlock) ── */
+[data-testid="stHorizontalBlock"] [data-testid="column"] [data-testid="stHorizontalBlock"]:first-of-type button {
     font-size:10px !important;
+    font-weight:600 !important;
     padding:4px 3px !important;
 }
 
-/* ── 세부 카테고리 필터 버튼 (col_l 첫 번째 column 안 2번째+ HBlock) ── */
-[data-testid="stHorizontalBlock"] [data-testid="column"]:first-child
-[data-testid="stHorizontalBlock"]:not(:first-of-type) button {
+/* ── Lv4: 세부 카테고리 필터 (3열 레이아웃 내부 두 번째+ HBlock) ── */
+[data-testid="stHorizontalBlock"] [data-testid="column"] [data-testid="stHorizontalBlock"]:not(:first-of-type) button {
     font-size:9px !important;
+    font-weight:500 !important;
     padding:2px 3px !important;
 }
 
 /* ── 로고 셀 균일화 ──────────────────── */
 .mxp-logo-cell {
-    height:22px;
+    height:18px;
     display:flex;
     align-items:center;
     justify-content:center;
     overflow:hidden;
+    line-height:1;
+}
+.mxp-logo-cell img,
+.mxp-logo-cell span {
+    width:15px !important;
+    height:15px !important;
+    min-width:15px !important;
+    max-width:15px !important;
+    min-height:15px !important;
+    max-height:15px !important;
+    flex-shrink:0 !important;
 }
 .mxp-logo-cell img {
-    width:15px !important; height:15px !important;
     object-fit:contain !important;
     display:block !important;
-    flex-shrink:0;
 }
 .mxp-logo-cell span {
-    width:15px !important; height:15px !important;
     font-size:5px !important;
-    flex-shrink:0;
+    display:inline-flex !important;
 }
 
-/* ── 로고 아래 → 버튼 위 간격 제거 (element-container :has 활용) ── */
-.element-container:has(.mxp-logo-cell) {
-    margin-bottom:-10px !important;
-    padding-bottom:0 !important;
+/* ── 로고 셀 element-container 높이 0 + 오버플로 허용 ── */
+.element-container:has(> [data-testid="stMarkdownContainer"] > .mxp-logo-cell) {
+    height:18px !important;
+    min-height:0 !important;
+    margin-bottom:-18px !important;
+    padding:0 !important;
+    overflow:visible !important;
 }
 
 
@@ -276,14 +300,6 @@ button[kind="secondary"]:hover {
     flex:1; height:1px; background:#E6E6E6;
 }
 
-/* ── 섹터 버튼 (가장 큼) ─────────────
-   최상단 첫 번째 stHorizontalBlock 행 */
-div[data-testid="stHorizontalBlock"]:first-of-type button {
-    font-size:13px !important;
-    padding:8px 6px !important;
-    font-weight:700 !important;
-    letter-spacing:0.2px !important;
-}
 </style>
 """, unsafe_allow_html=True)
 
@@ -345,8 +361,9 @@ def _logo_img(domain: str, size: int = 20, force_white: bool = False) -> str:
         si = f"https://cdn.simpleicons.org/{slug}{color_suffix}"
         fb = f"https://www.google.com/s2/favicons?domain={domain}&sz=64"
         return (
-            f'<img src="{si}" width="{size}" height="{size}" '
-            f'style="border-radius:3px;object-fit:contain;vertical-align:middle;" '
+            f'<img src="{si}" '
+            f'style="width:{size}px;height:{size}px;min-width:{size}px;max-width:{size}px;'
+            f'border-radius:3px;object-fit:contain;display:block;flex-shrink:0;" '
             f'onerror="this.onerror=null;this.src=\'{fb}\'">'
         )
     # 이니셜 뱃지 (Simple Icons에 없는 브랜드)
@@ -356,14 +373,16 @@ def _logo_img(domain: str, size: int = 20, force_white: bool = False) -> str:
         badge_bg = "rgba(255,255,255,0.2)" if force_white else bg
         return (
             f'<span style="display:inline-flex;align-items:center;justify-content:center;'
-            f'width:{size}px;height:{size}px;background:{badge_bg};border-radius:3px;'
-            f'font-size:{fs}px;font-weight:800;color:#fff;vertical-align:middle;'
+            f'width:{size}px;height:{size}px;min-width:{size}px;max-width:{size}px;'
+            f'background:{badge_bg};border-radius:3px;'
+            f'font-size:{fs}px;font-weight:800;color:#fff;flex-shrink:0;'
             f'letter-spacing:-0.5px;box-shadow:0 1px 3px rgba(0,0,0,0.15);">{text}</span>'
         )
     fb = f"https://www.google.com/s2/favicons?domain={domain}&sz=64"
     return (
-        f'<img src="{fb}" width="{size}" height="{size}" '
-        f'style="border-radius:3px;object-fit:contain;vertical-align:middle;">'
+        f'<img src="{fb}" '
+        f'style="width:{size}px;height:{size}px;min-width:{size}px;max-width:{size}px;'
+        f'border-radius:3px;object-fit:contain;display:block;flex-shrink:0;">'
     )
 
 
