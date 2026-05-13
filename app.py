@@ -123,6 +123,14 @@ div[data-testid="stHorizontalBlock"]:not(:first-of-type) > [data-testid="column"
     padding:5px 4px !important;
 }
 
+/* ── 카테고리 분석 행 버튼 (중간 컬럼, col_m 안 3-col 내부) ── */
+[data-testid="stHorizontalBlock"] [data-testid="column"]:nth-child(2)
+[data-testid="stHorizontalBlock"] button {
+    font-size:11px !important;
+    font-weight:600 !important;
+    padding:4px 6px !important;
+}
+
 /* ── Lv3: 상위 카테고리 필터 ── */
 [data-testid="stHorizontalBlock"] [data-testid="column"] [data-testid="stHorizontalBlock"]:first-of-type button {
     font-size:9px !important;
@@ -293,8 +301,9 @@ def _init():
     st.session_state.setdefault("articles", [])
     st.session_state.setdefault("selected_sector", "모바일")
     st.session_state.setdefault("selected_company", "전체")
-    st.session_state.setdefault("selected_top_cat", "기술·개발")   # 기구개발 기본값
+    st.session_state.setdefault("selected_top_cat", "기술·개발")
     st.session_state.setdefault("selected_cat", "전체")
+    st.session_state.setdefault("selected_mid_cat", None)   # 중간 컬럼 카테고리 필터
     st.session_state.setdefault("last_refresh", None)
 _init()
 
@@ -574,10 +583,12 @@ def _filtered(
 company_label  = sel_company if sel_company != "전체" else f"{sel_sector} 전체"
 sel_top_cat    = st.session_state.selected_top_cat
 sel_mech_cat   = st.session_state.selected_cat
-filtered_base  = _filtered(sel_sector, sel_company)                       # 전체 (필터 없음)
-filtered_top   = _filtered(sel_sector, sel_company, sel_top_cat)          # 상위 카테고리만 적용
-filtered       = _filtered(sel_sector, sel_company, sel_top_cat, sel_mech_cat)  # 전부 적용
-rumors         = [a for a in articles if a.is_rumor]
+filtered_base  = _filtered(sel_sector, sel_company)
+filtered_top   = _filtered(sel_sector, sel_company, sel_top_cat)
+filtered       = _filtered(sel_sector, sel_company, sel_top_cat, sel_mech_cat)
+all_rumors     = [a for a in articles if a.is_rumor]          # 전 섹터 (뱃지 카운트용)
+rumors         = [a for a in all_rumors if a.sector == sel_sector]  # 선택 섹터만 표시
+sel_mid_cat    = st.session_state.selected_mid_cat
 
 
 # ─────────────────────────────────────────────
@@ -648,7 +659,6 @@ with col_m:
     if not total:
         st.info("기사 없음")
     else:
-        # 상위 3분류 분포 (항상 표시)
         top_counts = {
             tc: sum(1 for a in filtered_base if a.top_category == tc)
             for tc in list(ARTICLE_CATEGORIES.keys()) + [TOP_CATEGORY_GENERAL]
@@ -658,7 +668,7 @@ with col_m:
 
         st.markdown(
             f"<div style='background:#F4F4F4;border-radius:4px;padding:12px 16px;"
-            f"margin-bottom:12px;border:1px solid #E6E6E6;'>"
+            f"margin-bottom:10px;border:1px solid #E6E6E6;'>"
             f"<div style='font-size:11px;color:#999;margin-bottom:4px;'>총 {total}건 · 기술개발 비중</div>"
             f"<div style='font-size:26px;font-weight:700;color:#1428A0;'>{tech_pct}%"
             f"  <span style='font-size:13px;color:#999;font-weight:400;'>({tech_cnt}건)</span></div>"
@@ -666,81 +676,111 @@ with col_m:
             unsafe_allow_html=True,
         )
 
-        # 상위 3분류 막대
-        top_rows_html = ""
-        for tc_name, tc_info in ARTICLE_CATEGORIES.items():
+        # 클릭 가능한 카테고리 행 — 버튼 + 막대 + 건수
+        all_top_cats = list(ARTICLE_CATEGORIES.items()) + [
+            (TOP_CATEGORY_GENERAL, {"color": "#D0D0D0"})
+        ]
+        for tc_name, tc_info in all_top_cats:
             cnt = top_counts.get(tc_name, 0)
-            pct = round(cnt / total * 100)
-            cls = _TOP_CAT_CSS.get(tc_name, "cat-general")
-            top_rows_html += (
-                f"<div class='cat-row'>"
-                f"  <span class='badge b-cat {cls}' style='min-width:76px;text-align:center;'>{tc_name}</span>"
-                f"  <div class='cat-bar-bg'><div class='cat-bar' style='width:{pct}%;background:{tc_info['color']};'></div></div>"
-                f"  <span class='cat-count'>{cnt}건</span>"
-                f"</div>"
-            )
-        gen_cnt = top_counts.get(TOP_CATEGORY_GENERAL, 0)
-        gen_pct = round(gen_cnt / total * 100)
-        top_rows_html += (
-            f"<div class='cat-row'>"
-            f"  <span class='badge b-cat cat-general' style='min-width:76px;text-align:center;'>일반뉴스</span>"
-            f"  <div class='cat-bar-bg'><div class='cat-bar' style='width:{gen_pct}%;background:#D0D0D0;'></div></div>"
-            f"  <span class='cat-count'>{gen_cnt}건</span>"
-            f"</div>"
-        )
-        st.markdown(f"<div style='margin-bottom:12px;'>{top_rows_html}</div>", unsafe_allow_html=True)
+            pct = round(cnt / total * 100) if total else 0
+            is_active = sel_mid_cat == tc_name
+            disp_name = "일반뉴스" if tc_name == TOP_CATEGORY_GENERAL else tc_name
 
-        # 기술 세부 카테고리 breakdown
-        tech_arts = [a for a in filtered_base if a.top_category == "기술·개발"]
-        if tech_arts:
-            with st.expander(f"기술·개발 세부 분류  ({len(tech_arts)}건)", expanded=True):
-                sub_rows = ""
-                for mc_name, mc_info in MECH_CATEGORIES.items():
-                    cnt = sum(1 for a in tech_arts if a.mech_category == mc_name)
-                    if cnt == 0:
-                        continue
-                    pct = round(cnt / len(tech_arts) * 100)
-                    css = _CAT_CSS.get(mc_name, "cat-general")
-                    sub_rows += (
-                        f"<div class='cat-row'>"
-                        f"  <span class='badge b-cat {css}' style='min-width:76px;text-align:center;'>{mc_name}</span>"
-                        f"  <div class='cat-bar-bg'><div class='cat-bar' style='width:{pct}%;background:{mc_info['color']};'></div></div>"
-                        f"  <span class='cat-count'>{cnt}건</span>"
-                        f"</div>"
-                    )
-                st.markdown(sub_rows, unsafe_allow_html=True)
-
-        # 감성 분석
-        pos = [a for a in filtered_base if analyses[a.link].sentiment == "positive"]
-        neg = [a for a in filtered_base if analyses[a.link].sentiment == "negative"]
-        with st.expander(f"감성 분석  (긍정 {len(pos)} / 부정 {len(neg)})", expanded=False):
-            st.markdown(_ratio_bar_html(len(pos), len(neg), total), unsafe_allow_html=True)
-            for art in (pos + neg):
-                an = analyses[art.link]
-                safe_t = html.escape(art.display_title)
+            cb, cbar, ccnt = st.columns([2.8, 5, 1])
+            with cb:
+                if st.button(
+                    disp_name,
+                    key=f"mid_{tc_name}",
+                    use_container_width=True,
+                    type="primary" if is_active else "secondary",
+                ):
+                    st.session_state.selected_mid_cat = None if is_active else tc_name
+                    st.rerun()
+            with cbar:
+                bar_color = tc_info["color"]
                 st.markdown(
-                    f"<div class='news-card {an.sentiment}' style='margin-bottom:5px;'>"
-                    f"  <a href='{art.link}' target='_blank'>"
-                    f"    <div class='news-title' style='font-size:12px;'>{safe_t}</div>"
-                    f"  </a>"
-                    f"  <div class='news-meta'>{_top_cat_badge(art.top_category)}"
-                    f"    {_sentiment_badge(an.sentiment)} {_source_badge(art.source)}"
-                    f"    <span>{art.published_ago}</span></div>"
+                    f"<div style='height:34px;display:flex;align-items:center;'>"
+                    f"<div class='cat-bar-bg'><div class='cat-bar'"
+                    f" style='width:{pct}%;background:{bar_color};'></div></div>"
                     f"</div>",
                     unsafe_allow_html=True,
                 )
+            with ccnt:
+                st.markdown(
+                    f"<div style='height:34px;display:flex;align-items:center;"
+                    f"justify-content:flex-end;font-size:11px;color:#999;font-weight:600;'>"
+                    f"{cnt}건</div>",
+                    unsafe_allow_html=True,
+                )
+
+        # 카테고리 선택 시 → 해당 기사 목록
+        if sel_mid_cat:
+            mid_arts = [a for a in filtered_base if a.top_category == sel_mid_cat]
+            disp = "일반뉴스" if sel_mid_cat == TOP_CATEGORY_GENERAL else sel_mid_cat
+            st.markdown(
+                f"<div class='col-header' style='margin-top:10px;'>{disp} · {len(mid_arts)}건</div>",
+                unsafe_allow_html=True,
+            )
+            if mid_arts:
+                cards = "".join(_news_card_html(a, analyses[a.link]) for a in mid_arts)
+                st.markdown(f"<div class='scroll-box'>{cards}</div>", unsafe_allow_html=True)
+            else:
+                st.info("해당 카테고리 기사가 없습니다.")
+        else:
+            # 기술 세부 카테고리 breakdown
+            tech_arts = [a for a in filtered_base if a.top_category == "기술·개발"]
+            if tech_arts:
+                with st.expander(f"기술·개발 세부 분류  ({len(tech_arts)}건)", expanded=True):
+                    sub_rows = ""
+                    for mc_name, mc_info in MECH_CATEGORIES.items():
+                        cnt = sum(1 for a in tech_arts if a.mech_category == mc_name)
+                        if cnt == 0:
+                            continue
+                        pct = round(cnt / len(tech_arts) * 100)
+                        css = _CAT_CSS.get(mc_name, "cat-general")
+                        sub_rows += (
+                            f"<div class='cat-row'>"
+                            f"  <span class='badge b-cat {css}' style='min-width:76px;text-align:center;'>{mc_name}</span>"
+                            f"  <div class='cat-bar-bg'><div class='cat-bar' style='width:{pct}%;background:{mc_info['color']};'></div></div>"
+                            f"  <span class='cat-count'>{cnt}건</span>"
+                            f"</div>"
+                        )
+                    st.markdown(sub_rows, unsafe_allow_html=True)
+
+            # 감성 분석
+            pos = [a for a in filtered_base if analyses[a.link].sentiment == "positive"]
+            neg = [a for a in filtered_base if analyses[a.link].sentiment == "negative"]
+            with st.expander(f"감성 분석  (긍정 {len(pos)} / 부정 {len(neg)})", expanded=False):
+                st.markdown(_ratio_bar_html(len(pos), len(neg), total), unsafe_allow_html=True)
+                for art in (pos + neg):
+                    an = analyses[art.link]
+                    safe_t = html.escape(art.display_title)
+                    st.markdown(
+                        f"<div class='news-card {an.sentiment}' style='margin-bottom:5px;'>"
+                        f"  <a href='{art.link}' target='_blank'>"
+                        f"    <div class='news-title' style='font-size:12px;'>{safe_t}</div>"
+                        f"  </a>"
+                        f"  <div class='news-meta'>{_top_cat_badge(art.top_category)}"
+                        f"    {_sentiment_badge(an.sentiment)} {_source_badge(art.source)}"
+                        f"    <span>{art.published_ago}</span></div>"
+                        f"</div>",
+                        unsafe_allow_html=True,
+                    )
 
 
-# ── 우: 루머 피드 (전 섹터) ──────────────────
+# ── 우: 루머 피드 (선택 섹터) ──────────────────
 with col_r:
-    st.markdown(f"<div class='col-header'>루머 &amp; 전망 · {len(rumors)}건</div>",
-                unsafe_allow_html=True)
+    st.markdown(
+        f"<div class='col-header'>루머 &amp; 전망 · {sel_sector} · {len(rumors)}건</div>",
+        unsafe_allow_html=True,
+    )
 
-    # 섹터별 루머 카운트 뱃지
-    sector_counts = {s: sum(1 for a in rumors if a.sector == s) for s in SECTORS}
+    # 섹터별 루머 카운트 뱃지 — 선택 섹터는 파란색 강조
+    sector_counts = {s: sum(1 for a in all_rumors if a.sector == s) for s in SECTORS}
     badges = " ".join(
-        f"<span class='badge b-src'>{s} {sector_counts[s]}</span>"
-        for s in SECTORS if sector_counts[s]
+        f"<span class='badge {'b-neu' if s == sel_sector else 'b-src'}'>"
+        f"{s} {sector_counts[s]}</span>"
+        for s in SECTORS
     )
     st.markdown(f"<div style='margin-bottom:10px;'>{badges}</div>", unsafe_allow_html=True)
 
