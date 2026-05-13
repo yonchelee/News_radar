@@ -1,8 +1,7 @@
 """뉴스 크롤링 모듈.
 
-Google News RSS를 사용하여 한국어 기술 뉴스를 수집하고,
-선행기구개발 그룹 관심 키워드로 필터링한다.
-feedparser 대신 requests + xml.etree.ElementTree 사용 (Python 3.11 호환).
+회사별(삼성/애플/기타) 키워드로 Google News RSS를 수집하고,
+루머 여부와 회사를 자동 태깅한다.
 """
 from __future__ import annotations
 
@@ -18,31 +17,67 @@ from typing import Iterable
 import requests
 from bs4 import BeautifulSoup
 
-# 선행기구개발 그룹 관심 키워드 (검색 + 필터)
-SEARCH_KEYWORDS: list[str] = [
-    "모바일 힌지",
-    "폴더블 힌지",
-    "EV 배터리 케이스",
-    "전기차 배터리 팩",
-    "전기차 부품",
-    "신소재 부품",
-    "마그네슘 합금 부품",
-    "탄소복합소재 부품",
-    "갤럭시 폴드 힌지",
-    "스마트폰 방열",
+# ─────────────────────────────────────────────
+# 회사별 프로파일
+# ─────────────────────────────────────────────
+COMPANY_PROFILES: dict[str, dict] = {
+    "삼성": {
+        "search_keywords": [
+            "삼성 갤럭시 신제품",
+            "삼성전자 스마트폰",
+            "갤럭시 Z 폴드",
+            "갤럭시 S 시리즈",
+            "삼성 모바일 루머",
+            "갤럭시 폴드 힌지",
+        ],
+        "match_tokens": ["삼성", "samsung", "갤럭시", "galaxy"],
+        "color": "#1F6FEB",
+        "emoji": "🔵",
+    },
+    "애플": {
+        "search_keywords": [
+            "아이폰 신제품",
+            "Apple iPhone 루머",
+            "아이폰 출시 예정",
+            "아이패드 신제품",
+            "애플 iOS 업데이트",
+            "맥북 신제품",
+        ],
+        "match_tokens": ["애플", "apple", "아이폰", "iphone", "아이패드", "ipad", "맥북", "macbook"],
+        "color": "#94A3B8",
+        "emoji": "🍎",
+    },
+}
+
+# 루머/전망 감지 키워드
+RUMOR_TOKENS: list[str] = [
+    "루머", "유출", "예상", "전망", "출시 예정", "소문",
+    "leak", "rumor", "확인되지", "알려진", "예측",
+    "렌더링", "알려졌", "전해졌", "계획 중", "소식통",
+    "업계 관계자", "예고", "관측", "예정", "기대",
 ]
 
-# 필터링 시 본문/제목에 포함되어야 하는 단어 (느슨한 OR 매칭)
+# 수집할 모든 키워드 (회사별 자동 생성)
+SEARCH_KEYWORDS: list[str] = [
+    kw
+    for profile in COMPANY_PROFILES.values()
+    for kw in profile["search_keywords"]
+]
+
+# 필터 통과 토큰 (회사명 + 제품명 포함)
 FILTER_TOKENS: list[str] = [
+    "삼성", "samsung", "갤럭시", "galaxy",
+    "애플", "apple", "아이폰", "iphone", "아이패드", "ipad", "맥북",
     "모바일", "스마트폰", "폴더블", "힌지",
-    "전기차", "EV", "배터리", "배터리팩", "셀", "팩",
-    "부품", "소재", "신소재", "합금", "복합소재", "방열",
-    "케이스", "기구", "사출", "다이캐스팅", "프레스",
+    "배터리", "방열", "부품", "소재", "신소재",
 ]
 
 GOOGLE_NEWS_RSS = "https://news.google.com/rss/search?q={query}&hl=ko&gl=KR&ceid=KR:ko"
 
 
+# ─────────────────────────────────────────────
+# 데이터 클래스
+# ─────────────────────────────────────────────
 @dataclass
 class Article:
     title: str
@@ -51,6 +86,8 @@ class Article:
     published: str
     summary_raw: str = ""
     matched_keyword: str = ""
+    company: str = "기타"      # "삼성" | "애플" | "기타"
+    is_rumor: bool = False
     content: str = field(default="", repr=False)
 
     @property
@@ -60,7 +97,24 @@ class Article:
         except Exception:
             return datetime.now(tz=timezone.utc)
 
+    @property
+    def published_ago(self) -> str:
+        try:
+            dt = self.published_dt.replace(tzinfo=None)
+            diff = datetime.now() - dt
+            h = int(diff.total_seconds() // 3600)
+            if h < 1:
+                return f"{int(diff.total_seconds() // 60)}분 전"
+            if h < 24:
+                return f"{h}시간 전"
+            return f"{h // 24}일 전"
+        except Exception:
+            return self.published[:10] if self.published else ""
 
+
+# ─────────────────────────────────────────────
+# 헬퍼
+# ─────────────────────────────────────────────
 def _clean_text(text: str) -> str:
     text = html.unescape(text or "")
     text = re.sub(r"<[^>]+>", " ", text)
@@ -75,15 +129,29 @@ def _matches_filter(text: str) -> bool:
     return any(tok.lower() in lowered for tok in FILTER_TOKENS)
 
 
+def _detect_company(text: str) -> str:
+    lowered = text.lower()
+    for company, profile in COMPANY_PROFILES.items():
+        if any(tok.lower() in lowered for tok in profile["match_tokens"]):
+            return company
+    return "기타"
+
+
+def _detect_rumor(text: str) -> bool:
+    lowered = text.lower()
+    return any(tok.lower() in lowered for tok in RUMOR_TOKENS)
+
+
+# ─────────────────────────────────────────────
+# RSS 파싱
+# ─────────────────────────────────────────────
 def _parse_rss(xml_text: str, keyword: str, max_items: int) -> list[Article]:
-    """RSS XML 텍스트를 파싱하여 Article 리스트 반환."""
     articles: list[Article] = []
     try:
         root = ET.fromstring(xml_text)
     except ET.ParseError:
         return articles
 
-    ns = {"media": "http://search.yahoo.com/mrss/"}
     channel = root.find("channel")
     if channel is None:
         return articles
@@ -97,7 +165,6 @@ def _parse_rss(xml_text: str, keyword: str, max_items: int) -> list[Article]:
         summary_raw = _clean_text(item.findtext("description") or "")
         published = (item.findtext("pubDate") or "").strip()
 
-        # 출처: <source> 태그 또는 제목 마지막 " - 출처명"
         source_tag = item.find("source")
         source = ""
         if source_tag is not None:
@@ -109,6 +176,9 @@ def _parse_rss(xml_text: str, keyword: str, max_items: int) -> list[Article]:
         if not _matches_filter(full_text):
             continue
 
+        company = _detect_company(full_text)
+        is_rumor = _detect_rumor(full_text)
+
         articles.append(
             Article(
                 title=title,
@@ -117,16 +187,20 @@ def _parse_rss(xml_text: str, keyword: str, max_items: int) -> list[Article]:
                 published=published,
                 summary_raw=summary_raw,
                 matched_keyword=keyword,
+                company=company,
+                is_rumor=is_rumor,
             )
         )
     return articles
 
 
+# ─────────────────────────────────────────────
+# 수집 함수
+# ─────────────────────────────────────────────
 def fetch_articles(
     keywords: Iterable[str] | None = None,
     max_per_keyword: int = 8,
 ) -> list[Article]:
-    """키워드별로 Google News RSS를 조회하여 Article 리스트를 반환."""
     keywords = list(keywords) if keywords else SEARCH_KEYWORDS
     seen: set[str] = set()
     articles: list[Article] = []
@@ -158,16 +232,10 @@ def fetch_articles(
 
 
 def fetch_article_body(url: str, timeout: int = 8) -> str:
-    """기사 원문 페이지에서 본문 텍스트를 추출 (best-effort).
-
-    Google News는 redirect를 사용하므로 requests가 final URL을 따라간다.
-    완벽한 본문 추출은 어려우므로 <p> 태그 결합 방식으로 근사한다.
-    """
     headers = {
         "User-Agent": (
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-            "AppleWebKit/537.36 (KHTML, like Gecko) "
-            "Chrome/124.0 Safari/537.36"
+            "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36"
         ),
         "Accept-Language": "ko-KR,ko;q=0.9,en;q=0.8",
     }
@@ -178,20 +246,19 @@ def fetch_article_body(url: str, timeout: int = 8) -> str:
         return f"[본문 수집 실패: {exc}]"
 
     soup = BeautifulSoup(resp.text, "lxml")
-
     for tag in soup(["script", "style", "nav", "footer", "aside", "header"]):
         tag.decompose()
-
     article_tag = soup.find("article") or soup.find(id=re.compile("article|content", re.I))
     target = article_tag if article_tag else soup
-
     paragraphs = [p.get_text(" ", strip=True) for p in target.find_all("p")]
     paragraphs = [p for p in paragraphs if len(p) > 30]
     body = "\n".join(paragraphs[:40])
-    return body or "[본문이 비어 있습니다. 사이트 구조 차이로 추출에 실패했을 수 있습니다.]"
+    return body or "[본문이 비어 있습니다.]"
 
 
-# 캐시: (timestamp, articles)
+# ─────────────────────────────────────────────
+# 캐시
+# ─────────────────────────────────────────────
 _CACHE: dict[str, tuple[float, list[Article]]] = {}
 _CACHE_TTL_SEC = 60 * 60  # 1시간
 
