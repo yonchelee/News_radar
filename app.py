@@ -13,6 +13,7 @@ from datetime import datetime
 from urllib.parse import quote
 
 import streamlit as st
+import streamlit.components.v1 as components
 
 import analyst
 import news_crawler
@@ -109,24 +110,6 @@ button[kind="secondary"]:hover {
     color:#1428A0 !important;
 }
 
-/* ── HTML 링크 버튼 (섹터·회사 선택) ──── */
-.mxp-btn-row { display:flex; gap:6px; margin-bottom:8px; flex-wrap:wrap; }
-.mxp-btn {
-    display:inline-flex; align-items:center; gap:5px;
-    padding:5px 10px; border-radius:4px;
-    font-size:11px; font-weight:600; line-height:1.4;
-    text-decoration:none !important;
-    border:1px solid #D0D0D0;
-    background:#FFFFFF; color:#535353 !important;
-    cursor:pointer; transition:all .12s;
-    white-space:nowrap; flex:1; justify-content:center;
-}
-.mxp-btn:hover { border-color:#1428A0; color:#1428A0 !important; }
-.mxp-btn.active {
-    background:#1428A0 !important;
-    color:#FFFFFF !important;
-    border-color:#1428A0 !important;
-}
 
 /* ── 뉴스 카드 ─────────────────────────── */
 .news-card {
@@ -455,60 +438,85 @@ if news_crawler.is_demo_mode:
     st.warning("데모 모드 — 샘플 데이터 표시 중. Streamlit Cloud에서 실제 뉴스 수집.")
 
 
+# ── 버튼 컴포넌트 공통 CSS (iframe 내부용) ──────
+_BTN_CSS = """
+<style>
+* { box-sizing:border-box; }
+body { margin:0; padding:0; background:transparent;
+       font-family:'Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',Arial,sans-serif; }
+.row { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:0; }
+.btn {
+    display:inline-flex; align-items:center; gap:5px;
+    padding:6px 10px; border-radius:4px;
+    font-size:12px; font-weight:600; line-height:1.4;
+    border:1px solid #D0D0D0; background:#FFFFFF; color:#535353;
+    cursor:pointer; transition:all .12s; white-space:nowrap; flex:1;
+    justify-content:center; user-select:none;
+}
+.btn:hover { border-color:#1428A0; color:#1428A0; }
+.btn.active { background:#1428A0; color:#FFFFFF !important; border-color:#1428A0; }
+img { border-radius:3px; object-fit:contain; vertical-align:middle; }
+</style>
+"""
+
+
 # ─────────────────────────────────────────────
-# ① 섹터 선택 (HTML 링크 버튼)
+# ① 섹터 선택 (components.html — JS 확실히 실행)
 # ─────────────────────────────────────────────
 sel_sector = st.session_state.selected_sector
-
-sec_parts = []
-for sector_name in SECTORS:
-    cnt = sum(1 for a in articles if a.sector == sector_name)
-    cls = "mxp-btn active" if sector_name == sel_sector else "mxp-btn"
-    url = f"?sec={quote(sector_name)}"
-    sec_parts.append(
-        f"<div class='{cls}' onclick=\"window.location.href='{url}';\">"
-        f"{sector_name} ({cnt})</div>"
-    )
-st.markdown(
-    f"<div class='mxp-btn-row'>{''.join(sec_parts)}</div>",
-    unsafe_allow_html=True,
-)
-
-
-# ─────────────────────────────────────────────
-# ② 회사 선택 (로고 + 텍스트 인라인, HTML 링크 버튼)
-# ─────────────────────────────────────────────
-sel_company = st.session_state.selected_company
-companies = SECTORS[sel_sector]["companies"]
 
 def _co_count(sector: str, company: str) -> int:
     if company == "전체":
         return sum(1 for a in articles if a.sector == sector)
     return sum(1 for a in articles if a.sector == sector and a.company == company)
 
+_sec_items = []
+for _sn in SECTORS:
+    _cnt = sum(1 for a in articles if a.sector == _sn)
+    _cls = "btn active" if _sn == sel_sector else "btn"
+    _url = f"?sec={quote(_sn)}"
+    _sec_items.append(
+        f"<div class='{_cls}' onclick=\"window.parent.location.href='{_url}'\">"
+        f"{_sn} ({_cnt})</div>"
+    )
+components.html(
+    f"{_BTN_CSS}<div class='row'>{''.join(_sec_items)}</div>",
+    height=48, scrolling=False,
+)
+
+
+# ─────────────────────────────────────────────
+# ② 회사 선택 (로고 + 텍스트 인라인, components.html)
+# ─────────────────────────────────────────────
+sel_company = st.session_state.selected_company
+companies = SECTORS[sel_sector]["companies"]
 all_cos = ["전체"] + list(companies.keys())
 per_row = 5
+n_rows = math.ceil(len(all_cos) / per_row)
 
-for row_i in range(math.ceil(len(all_cos) / per_row)):
+_co_rows_html = ""
+for row_i in range(n_rows):
     chunk = all_cos[row_i * per_row : (row_i + 1) * per_row]
-    parts = []
+    _co_rows_html += "<div class='row' style='margin-bottom:6px;'>"
     for co in chunk:
         cnt = _co_count(sel_sector, co)
         is_active = co == sel_company
-        cls = "mxp-btn active" if is_active else "mxp-btn"
+        cls = "btn active" if is_active else "btn"
         logo_html = ""
         if co != "전체":
             domain = companies[co]["domain"]
             logo_html = _logo_img(domain, 14, force_white=is_active)
         url = f"?co={quote(co)}"
-        parts.append(
-            f"<div class='{cls}' onclick=\"window.location.href='{url}';\">"
+        _co_rows_html += (
+            f"<div class='{cls}' onclick=\"window.parent.location.href='{url}'\">"
             f"{logo_html} {co} ({cnt})</div>"
         )
-    st.markdown(
-        f"<div class='mxp-btn-row'>{''.join(parts)}</div>",
-        unsafe_allow_html=True,
-    )
+    _co_rows_html += "</div>"
+
+components.html(
+    f"{_BTN_CSS}{_co_rows_html}",
+    height=n_rows * 48 + 4, scrolling=False,
+)
 
 
 # ─────────────────────────────────────────────
