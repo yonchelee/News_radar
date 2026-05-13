@@ -84,16 +84,16 @@ footer, #MainMenu { display:none !important; }
     color:#999999; letter-spacing:.2px;
 }
 
-/* ── Streamlit 버튼 공통 ─────────────── */
+/* ── Streamlit 버튼 공통 (회사 레벨) ── */
 div[data-testid="stHorizontalBlock"] button {
     border-radius:4px !important;
-    font-size:10px !important;
+    font-size:11px !important;
     font-weight:600 !important;
-    padding:3px 4px !important;
+    padding:5px 4px !important;
     line-height:1.35 !important;
     transition:all .12s !important;
-    white-space:pre-wrap !important;   /* \n 줄바꿈 허용 */
-    word-break:keep-all !important;    /* 한글 단어 중간 줄바꿈 방지 */
+    white-space:pre-wrap !important;
+    word-break:keep-all !important;
 }
 button[kind="primary"] {
     background:#1428A0 !important;
@@ -109,6 +109,45 @@ button[kind="secondary"] {
 button[kind="secondary"]:hover {
     border-color:#1428A0 !important;
     color:#1428A0 !important;
+}
+
+/* ── 상위 카테고리 필터 버튼 (HBlock 중첩 1단계) ── */
+[data-testid="stHorizontalBlock"] [data-testid="stHorizontalBlock"] button {
+    font-size:10px !important;
+    padding:4px 3px !important;
+}
+
+/* ── 세부 카테고리 필터 버튼 (col_l 첫 번째 column 안 2번째+ HBlock) ── */
+[data-testid="stHorizontalBlock"] [data-testid="column"]:first-child
+[data-testid="stHorizontalBlock"]:not(:first-of-type) button {
+    font-size:9px !important;
+    padding:2px 3px !important;
+}
+
+/* ── 로고 셀 균일화 ──────────────────── */
+.mxp-logo-cell {
+    height:22px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    overflow:hidden;
+}
+.mxp-logo-cell img {
+    width:15px !important; height:15px !important;
+    object-fit:contain !important;
+    display:block !important;
+    flex-shrink:0;
+}
+.mxp-logo-cell span {
+    width:15px !important; height:15px !important;
+    font-size:5px !important;
+    flex-shrink:0;
+}
+
+/* ── 로고 아래 → 버튼 위 간격 제거 (element-container :has 활용) ── */
+.element-container:has(.mxp-logo-cell) {
+    margin-bottom:-10px !important;
+    padding-bottom:0 !important;
 }
 
 
@@ -237,12 +276,13 @@ button[kind="secondary"]:hover {
     flex:1; height:1px; background:#E6E6E6;
 }
 
-/* ── 섹터 버튼 크기 강조 ────────────
-   첫 번째 stHorizontalBlock = 섹터 행 */
+/* ── 섹터 버튼 (가장 큼) ─────────────
+   최상단 첫 번째 stHorizontalBlock 행 */
 div[data-testid="stHorizontalBlock"]:first-of-type button {
     font-size:13px !important;
-    padding:7px 6px !important;
+    padding:8px 6px !important;
     font-weight:700 !important;
+    letter-spacing:0.2px !important;
 }
 </style>
 """, unsafe_allow_html=True)
@@ -503,8 +543,7 @@ for row_i in range(math.ceil(len(all_cos) / per_row)):
         if co != "전체":
             domain = companies[co]["domain"]
             col_b.markdown(
-                f"<div style='text-align:center;margin-bottom:-8px;'>"
-                f"{_logo_img(domain, 18)}</div>",
+                f"<div class='mxp-logo-cell'>{_logo_img(domain, 15)}</div>",
                 unsafe_allow_html=True,
             )
         if col_b.button(
