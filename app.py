@@ -10,6 +10,7 @@ from __future__ import annotations
 import html
 import math
 from datetime import datetime
+from urllib.parse import quote
 
 import streamlit as st
 
@@ -22,7 +23,7 @@ from news_crawler import (
 
 st.set_page_config(
     page_title="Mxplorer-news",
-    page_icon="🔭",
+    page_icon=None,
     layout="wide",
     initial_sidebar_state="collapsed",
 )
@@ -84,7 +85,7 @@ footer, #MainMenu { display:none !important; }
     color:#999999; letter-spacing:.2px;
 }
 
-/* ── Streamlit 버튼 ────────────────────── */
+/* ── Streamlit 버튼 (카테고리 필터 전용) ─ */
 div[data-testid="stHorizontalBlock"] button {
     border-radius:4px !important;
     font-size:11px !important;
@@ -107,9 +108,24 @@ button[kind="secondary"]:hover {
     border-color:#1428A0 !important;
     color:#1428A0 !important;
 }
-/* 로고-버튼 간격 */
-div[data-testid="stHorizontalBlock"] div[data-testid="stMarkdownContainer"] {
-    margin-bottom:-10px;
+
+/* ── HTML 링크 버튼 (섹터·회사 선택) ──── */
+.mxp-btn-row { display:flex; gap:6px; margin-bottom:8px; flex-wrap:wrap; }
+.mxp-btn {
+    display:inline-flex; align-items:center; gap:5px;
+    padding:5px 10px; border-radius:4px;
+    font-size:11px; font-weight:600; line-height:1.4;
+    text-decoration:none !important;
+    border:1px solid #D0D0D0;
+    background:#FFFFFF; color:#535353 !important;
+    cursor:pointer; transition:all .12s;
+    white-space:nowrap; flex:1; justify-content:center;
+}
+.mxp-btn:hover { border-color:#1428A0; color:#1428A0 !important; }
+.mxp-btn.active {
+    background:#1428A0 !important;
+    color:#FFFFFF !important;
+    border-color:#1428A0 !important;
 }
 
 /* ── 뉴스 카드 ─────────────────────────── */
@@ -236,6 +252,18 @@ def _init():
     st.session_state.setdefault("last_refresh", None)
 _init()
 
+# ── Query param 처리 (섹터/회사 HTML 링크 버튼 지원) ──
+_qp_sec = st.query_params.get("sec")
+_qp_co  = st.query_params.get("co")
+if _qp_sec or _qp_co:
+    if _qp_sec and _qp_sec in SECTORS:
+        st.session_state.selected_sector = _qp_sec
+        st.session_state.selected_company = "전체"
+    if _qp_co:
+        st.session_state.selected_company = _qp_co
+    st.query_params.clear()
+    st.rerun()
+
 
 # ─────────────────────────────────────────────
 # 헬퍼
@@ -274,11 +302,11 @@ _BRAND_INITIALS: dict[str, tuple[str, str]] = {
 }
 
 
-def _logo_img(domain: str, size: int = 20) -> str:
+def _logo_img(domain: str, size: int = 20, force_white: bool = False) -> str:
     slug = _SIMPLE_ICONS.get(domain)
     if slug:
-        # 라이트 테마: 각 브랜드 기본 색상 사용 (배경 흰색이므로 색상 아이콘이 더 잘 보임)
-        si = f"https://cdn.simpleicons.org/{slug}"
+        color_suffix = "/ffffff" if force_white else ""
+        si = f"https://cdn.simpleicons.org/{slug}{color_suffix}"
         fb = f"https://www.google.com/s2/favicons?domain={domain}&sz=64"
         return (
             f'<img src="{si}" width="{size}" height="{size}" '
@@ -289,9 +317,10 @@ def _logo_img(domain: str, size: int = 20) -> str:
     if domain in _BRAND_INITIALS:
         text, bg = _BRAND_INITIALS[domain]
         fs = max(7, size // 3)
+        badge_bg = "rgba(255,255,255,0.2)" if force_white else bg
         return (
             f'<span style="display:inline-flex;align-items:center;justify-content:center;'
-            f'width:{size}px;height:{size}px;background:{bg};border-radius:3px;'
+            f'width:{size}px;height:{size}px;background:{badge_bg};border-radius:3px;'
             f'font-size:{fs}px;font-weight:800;color:#fff;vertical-align:middle;'
             f'letter-spacing:-0.5px;box-shadow:0 1px 3px rgba(0,0,0,0.15);">{text}</span>'
         )
@@ -427,28 +456,27 @@ if news_crawler.is_demo_mode:
 
 
 # ─────────────────────────────────────────────
-# ① 섹터 선택 버튼
+# ① 섹터 선택 (HTML 링크 버튼)
 # ─────────────────────────────────────────────
 sel_sector = st.session_state.selected_sector
-sec_cols = st.columns(len(SECTORS))
-for col, (sector_name, sector_info) in zip(sec_cols, SECTORS.items()):
-    count = sum(1 for a in articles if a.sector == sector_name)
-    is_sel = sel_sector == sector_name
-    if col.button(
-        f"{sector_name}  ({count})",
-        key=f"sec_{sector_name}",
-        use_container_width=True,
-        type="primary" if is_sel else "secondary",
-    ):
-        st.session_state.selected_sector = sector_name
-        st.session_state.selected_company = "전체"
-        st.rerun()
+
+sec_parts = []
+for sector_name in SECTORS:
+    cnt = sum(1 for a in articles if a.sector == sector_name)
+    cls = "mxp-btn active" if sector_name == sel_sector else "mxp-btn"
+    sec_parts.append(
+        f"<a href='?sec={quote(sector_name)}' class='{cls}'>"
+        f"{sector_name} ({cnt})</a>"
+    )
+st.markdown(
+    f"<div class='mxp-btn-row'>{''.join(sec_parts)}</div>",
+    unsafe_allow_html=True,
+)
 
 
 # ─────────────────────────────────────────────
-# ② 회사 선택 (로고 + 기사 수 표시, 클릭 가능)
+# ② 회사 선택 (로고 + 텍스트 인라인, HTML 링크 버튼)
 # ─────────────────────────────────────────────
-sel_sector = st.session_state.selected_sector
 sel_company = st.session_state.selected_company
 companies = SECTORS[sel_sector]["companies"]
 
@@ -459,32 +487,26 @@ def _co_count(sector: str, company: str) -> int:
 
 all_cos = ["전체"] + list(companies.keys())
 per_row = 5
-rows = math.ceil(len(all_cos) / per_row)
 
-for row_i in range(rows):
+for row_i in range(math.ceil(len(all_cos) / per_row)):
     chunk = all_cos[row_i * per_row : (row_i + 1) * per_row]
-    btn_cols = st.columns(len(chunk))
-
-    for col_b, co in zip(btn_cols, chunk):
+    parts = []
+    for co in chunk:
         cnt = _co_count(sel_sector, co)
         is_active = co == sel_company
-
-        # 로고를 버튼 위에 작게 표시
+        cls = "mxp-btn active" if is_active else "mxp-btn"
+        logo_html = ""
         if co != "전체":
             domain = companies[co]["domain"]
-            col_b.markdown(
-                f"<div style='text-align:center;margin-bottom:-8px;'>{_logo_img(domain, 18)}</div>",
-                unsafe_allow_html=True,
-            )
-
-        if col_b.button(
-            f"{co} ({cnt})",
-            key=f"co_{sel_sector}_{co}",
-            use_container_width=True,
-            type="primary" if is_active else "secondary",
-        ):
-            st.session_state.selected_company = co
-            st.rerun()
+            logo_html = _logo_img(domain, 14, force_white=is_active)
+        parts.append(
+            f"<a href='?co={quote(co)}' class='{cls}'>"
+            f"{logo_html} {co} ({cnt})</a>"
+        )
+    st.markdown(
+        f"<div class='mxp-btn-row'>{''.join(parts)}</div>",
+        unsafe_allow_html=True,
+    )
 
 
 # ─────────────────────────────────────────────

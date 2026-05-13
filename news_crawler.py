@@ -23,7 +23,6 @@ from bs4 import BeautifulSoup
 # ─────────────────────────────────────────────
 SECTORS: dict[str, dict] = {
     "모바일": {
-        "emoji": "📱",
         "companies": {
             "삼성":   {"domain": "samsung.com",   "tokens": ["samsung", "galaxy", "갤럭시", "삼성", "exynos", "one ui"]},
             "애플":   {"domain": "apple.com",     "tokens": ["apple", "iphone", "ipad", "ios", "macos", "아이폰", "애플", "vision pro", "tim cook"]},
@@ -35,7 +34,6 @@ SECTORS: dict[str, dict] = {
         },
     },
     "로보틱스": {
-        "emoji": "🤖",
         "companies": {
             "Boston Dynamics": {"domain": "bostondynamics.com", "tokens": ["boston dynamics", "atlas robot", "spot robot", "stretch robot"]},
             "Figure AI":       {"domain": "figure.ai",          "tokens": ["figure ai", "figure robot", "figure 02", "helix ai", "figure humanoid"]},
@@ -48,7 +46,6 @@ SECTORS: dict[str, dict] = {
         },
     },
     "AI": {
-        "emoji": "🧠",
         "companies": {
             "OpenAI":    {"domain": "openai.com",    "tokens": ["openai", "chatgpt", "gpt-4", "gpt-5", "o1 model", "o3 model", "sora", "dall-e"]},
             "Anthropic": {"domain": "anthropic.com", "tokens": ["anthropic", "claude ai", "claude 3", "claude 4", "claude sonnet", "claude opus"]},
@@ -83,13 +80,11 @@ RUMOR_TOKENS: list[str] = [
 # ─────────────────────────────────────────────
 ARTICLE_CATEGORIES: dict[str, dict] = {
     "기술·개발": {
-        "emoji": "⚙️",
         "color": "#0891B2",
         "description": "설계·소재·사양·제조·내구성·열관리·메커니즘",
         # 기술 감지는 MECH_CATEGORIES 토큰 기반 (별도 처리)
     },
     "마케팅·출시": {
-        "emoji": "📣",
         "color": "#7C3AED",
         "description": "신제품 발표·출시·이벤트·광고·가격",
         "tokens": [
@@ -103,7 +98,6 @@ ARTICLE_CATEGORIES: dict[str, dict] = {
         ],
     },
     "사업·전략": {
-        "emoji": "📊",
         "color": "#059669",
         "description": "투자·파트너십·시장점유율·실적·M&A·전략",
         "tokens": [
@@ -125,7 +119,6 @@ TOP_CATEGORY_GENERAL = "일반뉴스"
 # ─────────────────────────────────────────────
 MECH_CATEGORIES: dict[str, dict] = {
     "디자인·폼팩터": {
-        "emoji": "🎨",
         "color": "#7C3AED",
         "tokens": [
             "design", "form factor", "thin", "slim", "foldable", "folding", "thickness",
@@ -135,7 +128,6 @@ MECH_CATEGORIES: dict[str, dict] = {
         ],
     },
     "소재·재질": {
-        "emoji": "🔩",
         "color": "#0891B2",
         "tokens": [
             "titanium", "aluminum", "aluminium", "ceramic", "glass", "gorilla glass",
@@ -145,7 +137,6 @@ MECH_CATEGORIES: dict[str, dict] = {
         ],
     },
     "사양·치수": {
-        "emoji": "📐",
         "color": "#059669",
         "tokens": [
             "specs", "dimensions", "weight", "capacity", "resolution", "battery",
@@ -155,7 +146,6 @@ MECH_CATEGORIES: dict[str, dict] = {
         ],
     },
     "내구성·신뢰성": {
-        "emoji": "🛡️",
         "color": "#D97706",
         "tokens": [
             "drop test", "water resistant", "waterproof", "ip68", "ip67", "ip rating",
@@ -165,7 +155,6 @@ MECH_CATEGORIES: dict[str, dict] = {
         ],
     },
     "제조·공정": {
-        "emoji": "🏭",
         "color": "#DC2626",
         "tokens": [
             "manufacturing", "assembly", "production", "factory", "supply chain",
@@ -175,7 +164,6 @@ MECH_CATEGORIES: dict[str, dict] = {
         ],
     },
     "열관리·냉각": {
-        "emoji": "🌡️",
         "color": "#EF4444",
         "tokens": [
             "thermal", "cooling", "heat", "temperature", "vapor chamber",
@@ -184,7 +172,6 @@ MECH_CATEGORIES: dict[str, dict] = {
         ],
     },
     "힌지·메커니즘": {
-        "emoji": "⚙️",
         "color": "#8B5CF6",
         "tokens": [
             "hinge", "actuator", "joint", "mechanism", "pivot", "fold",
