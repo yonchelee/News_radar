@@ -53,9 +53,14 @@ html, body, [data-testid="stAppViewContainer"] { background:#0F172A; color:#E2E8
 }
 .company-pill img { border-radius:3px; width:20px; height:20px; object-fit:contain; }
 
-/* 섹터 탭 버튼 */
+/* 섹터·회사 탭 버튼 */
 div[data-testid="stHorizontalBlock"] button {
-    border-radius:8px !important; font-size:13px !important;
+    border-radius:8px !important; font-size:12px !important;
+    padding-top:3px !important; padding-bottom:3px !important;
+}
+/* 로고-버튼 간격 최소화 */
+div[data-testid="stHorizontalBlock"] div[data-testid="stMarkdownContainer"] {
+    margin-bottom:-8px;
 }
 
 /* 뉴스 카드 */
@@ -269,33 +274,44 @@ for col, (sector_name, sector_info) in zip(sec_cols, SECTORS.items()):
 
 
 # ─────────────────────────────────────────────
-# ② 회사 로고 그리드
+# ② 회사 선택 (로고 + 기사 수 표시, 클릭 가능)
 # ─────────────────────────────────────────────
 sel_sector = st.session_state.selected_sector
 sel_company = st.session_state.selected_company
 companies = SECTORS[sel_sector]["companies"]
 
-# HTML 로고 그리드 (시각용)
-grid_html = "<div class='company-grid'>"
-all_pill = "active" if sel_company == "전체" else ""
-grid_html += f"<div class='company-pill {all_pill}'>전체</div>"
-for company, info in companies.items():
-    active = "active" if sel_company == company else ""
-    logo = _logo_img(info["domain"], 20)
-    grid_html += f"<div class='company-pill {active}'>{logo} {company}</div>"
-grid_html += "</div>"
-st.markdown(grid_html, unsafe_allow_html=True)
+def _co_count(sector: str, company: str) -> int:
+    if company == "전체":
+        return sum(1 for a in articles if a.sector == sector)
+    return sum(1 for a in articles if a.sector == sector and a.company == company)
 
-# Streamlit 버튼 (인터랙션용)
 all_cos = ["전체"] + list(companies.keys())
 per_row = 5
 rows = math.ceil(len(all_cos) / per_row)
+
 for row_i in range(rows):
     chunk = all_cos[row_i * per_row : (row_i + 1) * per_row]
-    btn_cols = st.columns(len(chunk))
-    for col, co in zip(btn_cols, chunk):
-        if col.button(
-            co,
+    cols_logo = st.columns(len(chunk))
+    cols_btn  = st.columns(len(chunk))
+
+    for col_l, col_b, co in zip(cols_logo, cols_btn, chunk):
+        cnt = _co_count(sel_sector, co)
+        # 로고 이미지 (버튼 위에 표시)
+        if co == "전체":
+            col_l.markdown(
+                "<div style='text-align:center;padding:2px 0;font-size:18px;'>🌐</div>",
+                unsafe_allow_html=True,
+            )
+        else:
+            domain = companies[co]["domain"]
+            col_l.markdown(
+                f"<div style='text-align:center;padding:2px 0;'>{_logo_img(domain, 22)}</div>",
+                unsafe_allow_html=True,
+            )
+        # 클릭 가능한 버튼 (회사명 + 기사 수)
+        label = f"{co} ({cnt})"
+        if col_b.button(
+            label,
             key=f"co_{sel_sector}_{co}",
             use_container_width=True,
             type="primary" if co == sel_company else "secondary",
