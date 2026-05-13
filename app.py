@@ -464,8 +464,11 @@ sec_parts = []
 for sector_name in SECTORS:
     cnt = sum(1 for a in articles if a.sector == sector_name)
     cls = "mxp-btn active" if sector_name == sel_sector else "mxp-btn"
+    url = f"?sec={quote(sector_name)}"
     sec_parts.append(
-        f"<a href='?sec={quote(sector_name)}' class='{cls}'>"
+        f"<a href='{url}' target='_self' "
+        f"onclick=\"event.preventDefault();window.location.href='{url}';\" "
+        f"class='{cls}'>"
         f"{sector_name} ({cnt})</a>"
     )
 st.markdown(
@@ -499,8 +502,11 @@ for row_i in range(math.ceil(len(all_cos) / per_row)):
         if co != "전체":
             domain = companies[co]["domain"]
             logo_html = _logo_img(domain, 14, force_white=is_active)
+        url = f"?co={quote(co)}"
         parts.append(
-            f"<a href='?co={quote(co)}' class='{cls}'>"
+            f"<a href='{url}' target='_self' "
+            f"onclick=\"event.preventDefault();window.location.href='{url}';\" "
+            f"class='{cls}'>"
             f"{logo_html} {co} ({cnt})</a>"
         )
     st.markdown(
