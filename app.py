@@ -155,42 +155,6 @@ div[data-testid="stHorizontalBlock"]:not(:first-of-type) > [data-testid="column"
     line-height:1.3 !important;
 }
 
-/* ── 로고 셀 균일화 ──────────────────── */
-.mxp-logo-cell {
-    height:18px;
-    display:flex;
-    align-items:center;
-    justify-content:center;
-    overflow:hidden;
-    line-height:1;
-}
-.mxp-logo-cell img,
-.mxp-logo-cell span {
-    width:15px !important;
-    height:15px !important;
-    min-width:15px !important;
-    max-width:15px !important;
-    min-height:15px !important;
-    max-height:15px !important;
-    flex-shrink:0 !important;
-}
-.mxp-logo-cell img {
-    object-fit:contain !important;
-    display:block !important;
-}
-.mxp-logo-cell span {
-    font-size:5px !important;
-    display:inline-flex !important;
-}
-
-/* ── 로고 셀 element-container 높이 0 + 오버플로 허용 ── */
-.element-container:has(> [data-testid="stMarkdownContainer"] > .mxp-logo-cell) {
-    height:18px !important;
-    min-height:0 !important;
-    margin-bottom:-18px !important;
-    padding:0 !important;
-    overflow:visible !important;
-}
 
 
 /* ── 뉴스 카드 ─────────────────────────── */
@@ -559,7 +523,7 @@ for col, sector_name in zip(sec_cols, SECTORS):
 
 
 # ─────────────────────────────────────────────
-# ② 회사 선택 (로고 위 + 버튼 텍스트)
+# ② 회사 선택
 # ─────────────────────────────────────────────
 sel_company = st.session_state.selected_company
 companies = SECTORS[sel_sector]["companies"]
@@ -577,21 +541,11 @@ for row_i in range(math.ceil(len(all_cos) / per_row)):
     btn_cols = st.columns(len(chunk))
     for col_b, co in zip(btn_cols, chunk):
         cnt = _co_count(sel_sector, co)
-        is_active = co == sel_company
-        if co != "전체":
-            domain = companies[co]["domain"]
-            logo_content = _logo_img(domain, 15)
-        else:
-            logo_content = ""  # 빈 셀 — 다른 버튼과 수직 정렬 맞춤
-        col_b.markdown(
-            f"<div class='mxp-logo-cell'>{logo_content}</div>",
-            unsafe_allow_html=True,
-        )
         if col_b.button(
             f"{co} ({cnt})",
             key=f"co_{sel_sector}_{co}",
             use_container_width=True,
-            type="primary" if is_active else "secondary",
+            type="primary" if co == sel_company else "secondary",
         ):
             st.session_state.selected_company = co
             st.rerun()
@@ -648,10 +602,9 @@ with col_l:
     top_cat_opts = ["전체"] + list(ARTICLE_CATEGORIES.keys()) + [TOP_CATEGORY_GENERAL]
     tc_cols = st.columns(len(top_cat_opts))
     for col_tc, tc in zip(tc_cols, top_cat_opts):
-        cnt = sum(1 for a in filtered_base if a.top_category == tc) if tc != "전체" else len(filtered_base)
         lbl = _TOP_SHORT.get(tc, tc)
         if col_tc.button(
-            f"{lbl} {cnt}",
+            lbl,
             key=f"tc_{sel_sector}_{sel_company}_{tc}",
             use_container_width=True,
             type="primary" if sel_top_cat == tc else "secondary",
