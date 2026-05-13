@@ -466,10 +466,8 @@ for sector_name in SECTORS:
     cls = "mxp-btn active" if sector_name == sel_sector else "mxp-btn"
     url = f"?sec={quote(sector_name)}"
     sec_parts.append(
-        f"<a href='{url}' target='_self' "
-        f"onclick=\"event.preventDefault();window.location.href='{url}';\" "
-        f"class='{cls}'>"
-        f"{sector_name} ({cnt})</a>"
+        f"<div class='{cls}' onclick=\"window.location.href='{url}';\">"
+        f"{sector_name} ({cnt})</div>"
     )
 st.markdown(
     f"<div class='mxp-btn-row'>{''.join(sec_parts)}</div>",
@@ -504,10 +502,8 @@ for row_i in range(math.ceil(len(all_cos) / per_row)):
             logo_html = _logo_img(domain, 14, force_white=is_active)
         url = f"?co={quote(co)}"
         parts.append(
-            f"<a href='{url}' target='_self' "
-            f"onclick=\"event.preventDefault();window.location.href='{url}';\" "
-            f"class='{cls}'>"
-            f"{logo_html} {co} ({cnt})</a>"
+            f"<div class='{cls}' onclick=\"window.location.href='{url}';\">"
+            f"{logo_html} {co} ({cnt})</div>"
         )
     st.markdown(
         f"<div class='mxp-btn-row'>{''.join(parts)}</div>",
