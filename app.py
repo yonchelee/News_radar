@@ -128,9 +128,14 @@ div[data-testid="stHorizontalBlock"]:not(:first-of-type) > [data-testid="column"
     font-size:9px !important;
     font-weight:600 !important;
     padding:3px 2px !important;
+    line-height:1.3 !important;
+}
+[data-testid="stHorizontalBlock"] [data-testid="column"] [data-testid="stHorizontalBlock"]:first-of-type button p {
+    font-size:9px !important;
     white-space:nowrap !important;
     overflow:hidden !important;
     text-overflow:ellipsis !important;
+    margin:0 !important;
     line-height:1.3 !important;
 }
 
@@ -139,9 +144,14 @@ div[data-testid="stHorizontalBlock"]:not(:first-of-type) > [data-testid="column"
     font-size:8px !important;
     font-weight:500 !important;
     padding:2px 1px !important;
+    line-height:1.3 !important;
+}
+[data-testid="stHorizontalBlock"] [data-testid="column"] [data-testid="stHorizontalBlock"]:not(:first-of-type) button p {
+    font-size:8px !important;
     white-space:nowrap !important;
     overflow:hidden !important;
     text-overflow:ellipsis !important;
+    margin:0 !important;
     line-height:1.3 !important;
 }
 
