@@ -73,6 +73,9 @@ footer, #MainMenu { display:none !important; }
     border-bottom:2px solid #1428A0;
     margin-bottom:16px;
     box-shadow:0 2px 12px rgba(0,0,0,0.06);
+    display:flex;
+    justify-content:space-between;
+    align-items:flex-start;
 }
 .mxp-header h1 {
     margin:0; font-size:22px; font-weight:700;
@@ -83,6 +86,21 @@ footer, #MainMenu { display:none !important; }
     margin:4px 0 0; font-size:11px;
     color:#999999; letter-spacing:.2px;
 }
+.lang-toggle {
+    display:inline-block;
+    padding:5px 13px;
+    border-radius:999px;
+    border:1.5px solid #1428A0;
+    color:#1428A0;
+    font-size:11px; font-weight:700;
+    text-decoration:none;
+    white-space:nowrap;
+    transition:all .12s;
+    margin-top:2px;
+    flex-shrink:0;
+}
+.lang-toggle:hover { background:#1428A0; color:#FFFFFF; }
+.lang-toggle.active { background:#1428A0; color:#FFFFFF; }
 
 /* ══ 버튼 공통 기본값 ══════════════════════════════ */
 button {
@@ -347,7 +365,6 @@ def _init():
     st.session_state.setdefault("selected_top_cat", "기술·개발")
     st.session_state.setdefault("selected_cat", "전체")
     st.session_state.setdefault("selected_mid_cat", None)
-    st.session_state.setdefault("show_korean", True)
     st.session_state.setdefault("last_refresh", None)
 _init()
 
@@ -530,6 +547,15 @@ analyses: dict[str, analyst.ArticleAnalysis] = {a.link: analyst.analyze_article(
 
 
 # ─────────────────────────────────────────────
+# 언어 설정 (URL 파라미터)
+# ─────────────────────────────────────────────
+show_ko = st.query_params.get("lang", "ko") != "en"
+_toggle_href = "?lang=en" if show_ko else "?lang=ko"
+_toggle_label = "🌐 EN" if show_ko else "🇰🇷 KO"
+_toggle_cls = "lang-toggle" if show_ko else "lang-toggle active"
+
+
+# ─────────────────────────────────────────────
 # 헤더
 # ─────────────────────────────────────────────
 age = news_crawler.cache_age_seconds()
@@ -537,8 +563,11 @@ age_str = f"{int(age//60)}분 전" if age else "방금"
 
 st.markdown(
     f'<div class="mxp-header">'
-    f'<h1>Mx<span>plorer</span>-news</h1>'
-    f'<p>MOBILE &nbsp;·&nbsp; ROBOTICS &nbsp;·&nbsp; AI &nbsp;│&nbsp; {age_str} &nbsp;·&nbsp; {len(articles)}건 &nbsp;·&nbsp; 5분 자동 갱신</p>'
+    f'  <div>'
+    f'    <h1>Mx<span>plorer</span>-news</h1>'
+    f'    <p>MOBILE &nbsp;·&nbsp; ROBOTICS &nbsp;·&nbsp; AI &nbsp;│&nbsp; {age_str} &nbsp;·&nbsp; {len(articles)}건 &nbsp;·&nbsp; 5분 자동 갱신</p>'
+    f'  </div>'
+    f'  <a href="{_toggle_href}" class="{_toggle_cls}">{_toggle_label}</a>'
     f'</div>',
     unsafe_allow_html=True,
 )
@@ -637,20 +666,7 @@ sel_mid_cat    = st.session_state.selected_mid_cat
 
 
 # ─────────────────────────────────────────────
-# ③ 번역 토글
-# ─────────────────────────────────────────────
-show_ko = st.session_state.show_korean
-_tog_label = "🇰🇷 한국어" if show_ko else "🌐 English"
-_tog_col, _ = st.columns([1, 7])
-with _tog_col:
-    if st.button(_tog_label, key="toggle_ko", use_container_width=True,
-                 type="primary" if show_ko else "secondary"):
-        st.session_state.show_korean = not show_ko
-        st.rerun()
-
-
-# ─────────────────────────────────────────────
-# ④ 상단 2열: 뉴스 리스트 | 카테고리 분석
+# ③ 상단 2열: 뉴스 리스트 | 카테고리 분석
 # ─────────────────────────────────────────────
 _TOP_SHORT = {
     "전체":              "전체",
