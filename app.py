@@ -14,7 +14,12 @@ import streamlit as st
 
 import analyst
 import news_crawler
-from news_crawler import COMPANY_PROFILES
+
+COMPANY_INFO = {
+    "삼성": {"emoji": "🔵", "color": "#1F6FEB"},
+    "애플": {"emoji": "🍎", "color": "#94A3B8"},
+    "기타": {"emoji": "⚙️", "color": "#22D3EE"},
+}
 
 st.set_page_config(
     page_title="뉴스 레이더",
@@ -185,7 +190,7 @@ _init()
 # ─────────────────────────────────────────────
 def _company_badge(company: str) -> str:
     cls = {"삼성": "badge-samsung", "애플": "badge-apple"}.get(company, "badge-etc")
-    emoji = COMPANY_PROFILES.get(company, {}).get("emoji", "⚙️")
+    emoji = COMPANY_INFO.get(company, {}).get("emoji", "⚙️")
     return f"<span class='badge {cls}'>{emoji} {company}</span>"
 
 
@@ -254,6 +259,13 @@ if not st.session_state.articles:
 
 articles: list[news_crawler.Article] = st.session_state.articles
 
+if news_crawler.is_demo_mode:
+    st.warning(
+        "⚠️ **데모 모드** — RSS 피드에 연결할 수 없어 샘플 데이터를 표시합니다. "
+        "로컬 PC 또는 Streamlit Cloud에 배포하면 MacRumors·SamMobile 등 실제 뉴스가 수집됩니다.",
+        icon="📡",
+    )
+
 # 전체 분석 (캐시 효과: 키워드 기반이라 빠름)
 all_analyses: dict[str, analyst.ArticleAnalysis] = {
     a.link: analyst.analyze_article(a) for a in articles
@@ -300,7 +312,7 @@ with col_left:
     btn_cols = st.columns(len(companies))
     for i, co in enumerate(companies):
         count = len(articles) if co == "전체" else sum(1 for a in articles if a.company == co)
-        label = f"{COMPANY_PROFILES.get(co,{}).get('emoji','⚙️')} {co} ({count})" if co != "전체" else f"전체 ({count})"
+        label = f"{COMPANY_INFO.get(co,{}).get('emoji','⚙️')} {co} ({count})" if co != "전체" else f"전체 ({count})"
         if btn_cols[i].button(label, key=f"co_{co}", use_container_width=True):
             st.session_state.selected_company = co
             st.rerun()
@@ -333,7 +345,7 @@ with col_mid:
     selected = st.session_state.selected_company
     target = articles if selected == "전체" else [a for a in articles if a.company == selected]
 
-    co_emoji = COMPANY_PROFILES.get(selected, {}).get("emoji", "📊")
+    co_emoji = COMPANY_INFO.get(selected, {}).get("emoji", "📊")
     st.markdown(
         f"<div class='col-header'>{co_emoji} {selected} 감성 분석</div>",
         unsafe_allow_html=True,

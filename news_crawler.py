@@ -1,110 +1,101 @@
 """뉴스 크롤링 모듈.
 
-회사별(삼성/애플/기타) 키워드로 Google News RSS를 수집하고,
-루머 여부와 회사를 자동 태깅한다.
+삼성/애플 전문 사이트 RSS를 직접 수집한다.
+Google News RSS 불필요 — API 키 없이 동작.
+RSS 2.0 / Atom 두 포맷 모두 지원.
 """
 from __future__ import annotations
 
 import html
 import re
 import time
-import urllib.parse
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import Iterable
+from email.utils import parsedate_to_datetime
+from typing import NamedTuple
 
 import requests
 from bs4 import BeautifulSoup
 
 # ─────────────────────────────────────────────
-# 회사별 프로파일
+# RSS 소스 정의
 # ─────────────────────────────────────────────
-COMPANY_PROFILES: dict[str, dict] = {
-    "삼성": {
-        "search_keywords": [
-            "삼성 갤럭시 신제품",
-            "삼성전자 스마트폰",
-            "갤럭시 Z 폴드",
-            "갤럭시 S 시리즈",
-            "삼성 모바일 루머",
-            "갤럭시 폴드 힌지",
-        ],
-        "match_tokens": ["삼성", "samsung", "갤럭시", "galaxy"],
-        "color": "#1F6FEB",
-        "emoji": "🔵",
-    },
-    "애플": {
-        "search_keywords": [
-            "아이폰 신제품",
-            "Apple iPhone 루머",
-            "아이폰 출시 예정",
-            "아이패드 신제품",
-            "애플 iOS 업데이트",
-            "맥북 신제품",
-        ],
-        "match_tokens": ["애플", "apple", "아이폰", "iphone", "아이패드", "ipad", "맥북", "macbook"],
-        "color": "#94A3B8",
-        "emoji": "🍎",
-    },
+class RssSource(NamedTuple):
+    name: str
+    url: str
+    company: str        # "삼성" | "애플" | "기타" — None 이면 내용으로 자동 판별
+    rumor_site: bool    # 사이트 자체가 루머/유출 전문이면 True
+    max_items: int = 15
+
+RSS_SOURCES: list[RssSource] = [
+    # ── 애플 전문 ──────────────────────────────
+    RssSource("MacRumors",   "https://feeds.macrumors.com/MacRumors-All",         "애플", True,  20),
+    RssSource("9to5Mac",     "https://9to5mac.com/feed/",                          "애플", False, 15),
+    # ── 삼성 전문 ──────────────────────────────
+    RssSource("SamMobile",   "https://www.sammobile.com/feed/",                   "삼성", True,  20),
+    RssSource("9to5Google",  "https://9to5google.com/feed/",                      "삼성", False, 15),
+    # ── 모바일 전반 ────────────────────────────
+    RssSource("GSMArena",    "https://www.gsmarena.com/rss-news-reviews.php3",    "기타", False, 20),
+    RssSource("The Verge",   "https://www.theverge.com/rss/index.xml",            "기타", False, 15),
+    RssSource("TechCrunch",  "https://techcrunch.com/category/mobile/feed/",      "기타", False, 10),
+]
+
+# 회사 감지 토큰 (기타 소스에서 사용)
+_COMPANY_TOKENS: dict[str, list[str]] = {
+    "삼성": ["samsung", "galaxy", "갤럭시", "삼성"],
+    "애플": ["apple", "iphone", "ipad", "macbook", "ios", "아이폰", "애플"],
 }
 
-# 루머/전망 감지 키워드
+# 루머/유출 감지 토큰
 RUMOR_TOKENS: list[str] = [
-    "루머", "유출", "예상", "전망", "출시 예정", "소문",
-    "leak", "rumor", "확인되지", "알려진", "예측",
-    "렌더링", "알려졌", "전해졌", "계획 중", "소식통",
-    "업계 관계자", "예고", "관측", "예정", "기대",
+    "rumor", "leak", "leaked", "exclusive", "report", "expected",
+    "alleged", "concept", "render", "tipster", "supply chain",
+    "루머", "유출", "예상", "전망", "출시 예정", "소문", "소식통", "확인되지",
 ]
 
-# 수집할 모든 키워드 (회사별 자동 생성)
-SEARCH_KEYWORDS: list[str] = [
-    kw
-    for profile in COMPANY_PROFILES.values()
-    for kw in profile["search_keywords"]
-]
-
-# 필터 통과 토큰 (회사명 + 제품명 포함)
-FILTER_TOKENS: list[str] = [
-    "삼성", "samsung", "갤럭시", "galaxy",
-    "애플", "apple", "아이폰", "iphone", "아이패드", "ipad", "맥북",
-    "모바일", "스마트폰", "폴더블", "힌지",
-    "배터리", "방열", "부품", "소재", "신소재",
-]
-
-GOOGLE_NEWS_RSS = "https://news.google.com/rss/search?q={query}&hl=ko&gl=KR&ceid=KR:ko"
+# Atom 네임스페이스
+_ATOM_NS = "http://www.w3.org/2005/Atom"
 
 
 # ─────────────────────────────────────────────
-# 데이터 클래스
+# Article 데이터클래스
 # ─────────────────────────────────────────────
 @dataclass
 class Article:
     title: str
     link: str
-    source: str
-    published: str
+    source: str          # 사이트 이름 (MacRumors, SamMobile …)
+    published: str       # 원본 날짜 문자열
     summary_raw: str = ""
-    matched_keyword: str = ""
-    company: str = "기타"      # "삼성" | "애플" | "기타"
+    company: str = "기타"
     is_rumor: bool = False
     content: str = field(default="", repr=False)
 
     @property
     def published_dt(self) -> datetime:
+        # RFC 2822 (RSS)
         try:
-            return datetime.strptime(self.published, "%a, %d %b %Y %H:%M:%S %Z")
+            return parsedate_to_datetime(self.published).replace(tzinfo=None)
         except Exception:
-            return datetime.now(tz=timezone.utc)
+            pass
+        # ISO 8601 (Atom)
+        for fmt in ("%Y-%m-%dT%H:%M:%S%z", "%Y-%m-%dT%H:%M:%SZ", "%Y-%m-%d"):
+            try:
+                dt = datetime.strptime(self.published[:19], fmt[:len(self.published[:19])])
+                return dt.replace(tzinfo=None)
+            except Exception:
+                pass
+        return datetime.now()
 
     @property
     def published_ago(self) -> str:
         try:
-            dt = self.published_dt.replace(tzinfo=None)
-            diff = datetime.now() - dt
+            diff = datetime.now() - self.published_dt
             h = int(diff.total_seconds() // 3600)
             if h < 1:
-                return f"{int(diff.total_seconds() // 60)}분 전"
+                m = int(diff.total_seconds() // 60)
+                return f"{m}분 전" if m > 0 else "방금"
             if h < 24:
                 return f"{h}시간 전"
             return f"{h // 24}일 전"
@@ -115,114 +106,133 @@ class Article:
 # ─────────────────────────────────────────────
 # 헬퍼
 # ─────────────────────────────────────────────
-def _clean_text(text: str) -> str:
+def _clean(text: str) -> str:
     text = html.unescape(text or "")
     text = re.sub(r"<[^>]+>", " ", text)
-    text = re.sub(r"\s+", " ", text)
-    return text.strip()
-
-
-def _matches_filter(text: str) -> bool:
-    if not text:
-        return False
-    lowered = text.lower()
-    return any(tok.lower() in lowered for tok in FILTER_TOKENS)
+    return re.sub(r"\s+", " ", text).strip()
 
 
 def _detect_company(text: str) -> str:
-    lowered = text.lower()
-    for company, profile in COMPANY_PROFILES.items():
-        if any(tok.lower() in lowered for tok in profile["match_tokens"]):
+    low = text.lower()
+    for company, tokens in _COMPANY_TOKENS.items():
+        if any(t in low for t in tokens):
             return company
     return "기타"
 
 
-def _detect_rumor(text: str) -> bool:
-    lowered = text.lower()
-    return any(tok.lower() in lowered for tok in RUMOR_TOKENS)
+def _detect_rumor(text: str, rumor_site: bool) -> bool:
+    if rumor_site:
+        return True
+    low = text.lower()
+    return any(t in low for t in RUMOR_TOKENS)
+
+
+def _filter_general(text: str) -> bool:
+    """기타 소스에서 삼성/애플 무관 기사 제거."""
+    low = text.lower()
+    all_tokens = _COMPANY_TOKENS["삼성"] + _COMPANY_TOKENS["애플"]
+    return any(t in low for t in all_tokens)
 
 
 # ─────────────────────────────────────────────
-# RSS 파싱
+# XML 파싱 (RSS 2.0 + Atom)
 # ─────────────────────────────────────────────
-def _parse_rss(xml_text: str, keyword: str, max_items: int) -> list[Article]:
+def _parse_feed(xml_text: str, source: RssSource) -> list[Article]:
     articles: list[Article] = []
     try:
         root = ET.fromstring(xml_text)
     except ET.ParseError:
         return articles
 
-    channel = root.find("channel")
-    if channel is None:
+    tag = root.tag.lower()
+
+    # ── Atom ──
+    if "atom" in tag or f"{{{_ATOM_NS}}}" in root.tag:
+        ns = {"a": _ATOM_NS}
+        entries = root.findall("a:entry", ns) or root.findall(f"{{{_ATOM_NS}}}entry")
+        for entry in entries[: source.max_items]:
+            title = _clean(
+                (entry.findtext(f"{{{_ATOM_NS}}}title") or
+                 entry.findtext("a:title", namespaces=ns) or "")
+            )
+            link_el = entry.find(f"{{{_ATOM_NS}}}link") or entry.find("a:link", ns)
+            link = ""
+            if link_el is not None:
+                link = link_el.get("href", "") or (link_el.text or "")
+            published = (
+                entry.findtext(f"{{{_ATOM_NS}}}published") or
+                entry.findtext(f"{{{_ATOM_NS}}}updated") or ""
+            )
+            summary = _clean(
+                entry.findtext(f"{{{_ATOM_NS}}}summary") or
+                entry.findtext(f"{{{_ATOM_NS}}}content") or ""
+            )
+            articles.append(_make_article(title, link, published, summary, source))
         return articles
 
-    for item in list(channel.findall("item"))[:max_items]:
+    # ── RSS 2.0 ──
+    channel = root.find("channel")
+    if channel is None:
+        channel = root  # 일부 피드는 <rss> 바로 아래 <item>
+    for item in list(channel.findall("item"))[: source.max_items]:
+        title = _clean(item.findtext("title") or "")
         link = (item.findtext("link") or "").strip()
-        title = _clean_text(item.findtext("title") or "")
-        if not link or not title:
-            continue
-
-        summary_raw = _clean_text(item.findtext("description") or "")
         published = (item.findtext("pubDate") or "").strip()
+        summary = _clean(item.findtext("description") or "")
+        articles.append(_make_article(title, link, published, summary, source))
 
-        source_tag = item.find("source")
-        source = ""
-        if source_tag is not None:
-            source = (source_tag.text or "").strip()
-        if not source and " - " in title:
-            source = title.rsplit(" - ", 1)[-1]
-
-        full_text = f"{title} {summary_raw}"
-        if not _matches_filter(full_text):
-            continue
-
-        company = _detect_company(full_text)
-        is_rumor = _detect_rumor(full_text)
-
-        articles.append(
-            Article(
-                title=title,
-                link=link,
-                source=source,
-                published=published,
-                summary_raw=summary_raw,
-                matched_keyword=keyword,
-                company=company,
-                is_rumor=is_rumor,
-            )
-        )
     return articles
+
+
+def _make_article(
+    title: str, link: str, published: str, summary: str, source: RssSource
+) -> Article:
+    full_text = f"{title} {summary}"
+    company = source.company if source.company != "기타" else _detect_company(full_text)
+    is_rumor = _detect_rumor(full_text, source.rumor_site)
+    return Article(
+        title=title,
+        link=link,
+        source=source.name,
+        published=published,
+        summary_raw=summary[:300],
+        company=company,
+        is_rumor=is_rumor,
+    )
 
 
 # ─────────────────────────────────────────────
 # 수집 함수
 # ─────────────────────────────────────────────
-def fetch_articles(
-    keywords: Iterable[str] | None = None,
-    max_per_keyword: int = 8,
-) -> list[Article]:
-    keywords = list(keywords) if keywords else SEARCH_KEYWORDS
+_HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) "
+        "Chrome/124.0 Safari/537.36"
+    ),
+    "Accept": "application/rss+xml, application/xml, text/xml, */*",
+}
+
+
+def fetch_articles() -> list[Article]:
     seen: set[str] = set()
     articles: list[Article] = []
 
-    headers = {
-        "User-Agent": (
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-            "AppleWebKit/537.36 (KHTML, like Gecko) "
-            "Chrome/124.0 Safari/537.36"
-        ),
-        "Accept-Language": "ko-KR,ko;q=0.9",
-    }
-
-    for kw in keywords:
-        url = GOOGLE_NEWS_RSS.format(query=urllib.parse.quote(kw))
+    for src in RSS_SOURCES:
         try:
-            resp = requests.get(url, headers=headers, timeout=10)
+            resp = requests.get(src.url, headers=_HEADERS, timeout=12)
             resp.raise_for_status()
-        except Exception:
+            resp.encoding = resp.apparent_encoding or "utf-8"
+        except Exception as exc:
+            print(f"[WARN] {src.name}: {exc}")
             continue
 
-        for art in _parse_rss(resp.text, kw, max_per_keyword):
+        for art in _parse_feed(resp.text, src):
+            if not art.title or not art.link:
+                continue
+            # 기타 소스는 삼성/애플 관련 기사만 통과
+            if src.company == "기타" and not _filter_general(f"{art.title} {art.summary_raw}"):
+                continue
             if art.link not in seen:
                 seen.add(art.link)
                 articles.append(art)
@@ -232,49 +242,100 @@ def fetch_articles(
 
 
 def fetch_article_body(url: str, timeout: int = 8) -> str:
-    headers = {
-        "User-Agent": (
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-            "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36"
-        ),
-        "Accept-Language": "ko-KR,ko;q=0.9,en;q=0.8",
-    }
     try:
-        resp = requests.get(url, headers=headers, timeout=timeout, allow_redirects=True)
+        resp = requests.get(url, headers=_HEADERS, timeout=timeout, allow_redirects=True)
         resp.raise_for_status()
     except Exception as exc:
         return f"[본문 수집 실패: {exc}]"
-
     soup = BeautifulSoup(resp.text, "lxml")
     for tag in soup(["script", "style", "nav", "footer", "aside", "header"]):
         tag.decompose()
     article_tag = soup.find("article") or soup.find(id=re.compile("article|content", re.I))
     target = article_tag if article_tag else soup
-    paragraphs = [p.get_text(" ", strip=True) for p in target.find_all("p")]
-    paragraphs = [p for p in paragraphs if len(p) > 30]
-    body = "\n".join(paragraphs[:40])
-    return body or "[본문이 비어 있습니다.]"
+    paragraphs = [p.get_text(" ", strip=True) for p in target.find_all("p") if len(p.get_text()) > 30]
+    return "\n".join(paragraphs[:40]) or "[본문을 추출할 수 없습니다.]"
 
 
 # ─────────────────────────────────────────────
-# 캐시
+# 캐시 (1시간)
 # ─────────────────────────────────────────────
 _CACHE: dict[str, tuple[float, list[Article]]] = {}
-_CACHE_TTL_SEC = 60 * 60  # 1시간
+_TTL = 3600
+
+
+def _demo_articles() -> list[Article]:
+    """RSS 접근 불가 환경에서 UI 확인용 샘플 데이터."""
+    return [
+        Article("Apple's iPhone 17 Pro rumored to feature periscope telephoto across all models",
+                "https://www.macrumors.com/", "MacRumors", "Mon, 12 May 2025 10:00:00 +0000",
+                "Supply chain sources suggest Apple plans to bring periscope zoom to the entire iPhone 17 Pro lineup.",
+                "애플", True),
+        Article("Samsung Galaxy S26 Ultra leak reveals massive battery upgrade",
+                "https://www.sammobile.com/", "SamMobile", "Mon, 12 May 2025 08:00:00 +0000",
+                "Leaked specs indicate a 6000mAh battery in the Galaxy S26 Ultra, up from 5000mAh.",
+                "삼성", True),
+        Article("Apple faces supply chain delays for foldable iPhone components",
+                "https://9to5mac.com/", "9to5Mac", "Mon, 12 May 2025 07:30:00 +0000",
+                "Reports from Asia suggest Apple's foldable hinge supplier is struggling with yield rates.",
+                "애플", False),
+        Article("Samsung confirms Galaxy Z Fold 7 hinge durability improvements",
+                "https://www.sammobile.com/", "SamMobile", "Sun, 11 May 2025 15:00:00 +0000",
+                "Samsung officially stated the new Flex Hinge in Z Fold 7 lasts 30% longer than the previous generation.",
+                "삼성", False),
+        Article("iOS 19 rumored to bring major redesign with AI-first interface",
+                "https://www.macrumors.com/", "MacRumors", "Sun, 11 May 2025 12:00:00 +0000",
+                "Multiple sources report Apple is working on a ground-up redesign of iOS for the upcoming iPhone 17 era.",
+                "애플", True),
+        Article("Galaxy S26 display panel to use new low-power LTPO4 technology",
+                "https://9to5google.com/", "9to5Google", "Sun, 11 May 2025 10:00:00 +0000",
+                "Samsung Display is reportedly mass-producing LTPO4 panels with 20% improved power efficiency.",
+                "삼성", True),
+        Article("Apple halts Vision Pro 2 development amid weak sales",
+                "https://9to5mac.com/", "9to5Mac", "Sat, 10 May 2025 09:00:00 +0000",
+                "Apple has reportedly put Vision Pro 2 on hold as first-generation sales fall short of targets.",
+                "애플", False),
+        Article("Samsung Galaxy Z Flip 7 concept renders leak online",
+                "https://www.gsmarena.com/", "GSMArena", "Sat, 10 May 2025 08:00:00 +0000",
+                "Alleged renders show a slimmer hinge design and larger cover display for the Galaxy Z Flip 7.",
+                "삼성", True),
+        Article("iPhone 17 Air battery life concerns surface in latest report",
+                "https://www.macrumors.com/", "MacRumors", "Fri, 09 May 2025 15:00:00 +0000",
+                "The ultra-thin iPhone 17 Air may ship with a smaller battery, raising battery life concerns.",
+                "애플", False),
+        Article("Samsung accused of exaggerating Galaxy AI features in ads",
+                "https://9to5google.com/", "9to5Google", "Fri, 09 May 2025 11:00:00 +0000",
+                "Consumer advocacy groups filed complaints over Samsung's Galaxy AI marketing claims.",
+                "삼성", False),
+        Article("Apple Watch Ultra 3 titanium chassis leak suggests larger sensor array",
+                "https://www.macrumors.com/", "MacRumors", "Thu, 08 May 2025 09:00:00 +0000",
+                "CAD renders show a redesigned back panel with additional health sensors.",
+                "애플", True),
+        Article("Samsung to use Snapdragon 8 Elite 2 exclusively in Galaxy S26 series",
+                "https://www.sammobile.com/", "SamMobile", "Thu, 08 May 2025 08:00:00 +0000",
+                "Qualcomm will supply all Galaxy S26 chipsets, ending the Exynos split for major markets.",
+                "삼성", True),
+    ]
+
+
+is_demo_mode: bool = False  # fetch 후 실제 데이터 없으면 True로 설정
 
 
 def get_cached_articles(force_refresh: bool = False) -> list[Article]:
+    global is_demo_mode
     now = time.time()
-    cached = _CACHE.get("articles")
-    if not force_refresh and cached and (now - cached[0]) < _CACHE_TTL_SEC:
+    cached = _CACHE.get("v")
+    if not force_refresh and cached and (now - cached[0]) < _TTL:
         return cached[1]
-    articles = fetch_articles()
-    _CACHE["articles"] = (now, articles)
-    return articles
+    arts = fetch_articles()
+    if arts:
+        is_demo_mode = False
+    else:
+        is_demo_mode = True
+        arts = _demo_articles()
+    _CACHE["v"] = (now, arts)
+    return arts
 
 
 def cache_age_seconds() -> float | None:
-    cached = _CACHE.get("articles")
-    if not cached:
-        return None
-    return time.time() - cached[0]
+    c = _CACHE.get("v")
+    return (time.time() - c[0]) if c else None
