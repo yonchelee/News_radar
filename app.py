@@ -207,7 +207,7 @@ def _sentiment_badge(sentiment: str) -> str:
 def _news_item_html(art: news_crawler.Article, analysis: analyst.ArticleAnalysis) -> str:
     sentiment_cls = analysis.sentiment  # positive / negative / neutral
     rumor_cls = " rumor" if art.is_rumor else ""
-    safe_title = html.escape(art.title)
+    safe_title = html.escape(art.display_title)
     safe_src = html.escape(art.source or "")
     s_badge = _sentiment_badge(analysis.sentiment)
     c_badge = _company_badge(art.company)
@@ -374,7 +374,7 @@ with col_mid:
             else:
                 for art in pos_arts:
                     rumor_tag = " 📡" if art.is_rumor else ""
-                    safe_t = html.escape(art.title)
+                    safe_t = html.escape(art.display_title)
                     safe_s = html.escape(art.source or "")
                     st.markdown(
                         f"<div class='news-item positive' style='margin-bottom:6px;'>"
@@ -394,7 +394,7 @@ with col_mid:
                 st.caption("해당 기사 없음")
             else:
                 for art in neu_arts:
-                    safe_t = html.escape(art.title)
+                    safe_t = html.escape(art.display_title)
                     safe_s = html.escape(art.source or "")
                     st.markdown(
                         f"<div class='news-item neutral' style='margin-bottom:6px;'>"
@@ -414,7 +414,7 @@ with col_mid:
                 st.caption("해당 기사 없음")
             else:
                 for art in neg_arts:
-                    safe_t = html.escape(art.title)
+                    safe_t = html.escape(art.display_title)
                     safe_s = html.escape(art.source or "")
                     st.markdown(
                         f"<div class='news-item negative' style='margin-bottom:6px;'>"
@@ -457,21 +457,30 @@ with col_right:
 
         rumor_html_parts = []
         for art in rumors:
-            safe_t = html.escape(art.title)
+            safe_t = html.escape(art.display_title)
             safe_s = html.escape(art.source or "")
             safe_sum = html.escape(
-                art.summary_raw[:120] + "…" if len(art.summary_raw) > 120 else art.summary_raw
+                art.display_summary[:120] + "…" if len(art.display_summary) > 120 else art.display_summary
             )
             c_badge = _company_badge(art.company)
             s_badge = _sentiment_badge(all_analyses[art.link].sentiment)
 
+            # 한국어 번역이 있을 때만 원문 표시
+            orig_line = ""
+            if art.title_ko and art.title_ko != art.title:
+                safe_orig = html.escape(art.title)
+                orig_line = f"<div style='font-size:10px;color:#7C3AED;margin-bottom:3px;'>原 {safe_orig}</div>"
+
             rumor_html_parts.append(
                 f"<a href='{art.link}' target='_blank' style='text-decoration:none;'>"
                 f"<div class='rumor-card'>"
-                f"  <div style='display:flex;gap:6px;margin-bottom:5px;flex-wrap:wrap;'>{c_badge}{s_badge}</div>"
+                f"  <div style='display:flex;gap:6px;margin-bottom:5px;flex-wrap:wrap;'>{c_badge}{s_badge}"
+                f"    <span style='font-size:10px;color:#6D28D9;margin-left:auto;'>{safe_s}</span>"
+                f"  </div>"
                 f"  <div class='r-title'>{safe_t}</div>"
+                f"  {orig_line}"
                 f"  <div class='r-summary'>{safe_sum}</div>"
-                f"  <div style='font-size:10px;color:#6D28D9;'>{safe_s} · {art.published_ago}</div>"
+                f"  <div style='font-size:10px;color:#6D28D9;'>{art.published_ago}</div>"
                 f"</div></a>"
             )
 
