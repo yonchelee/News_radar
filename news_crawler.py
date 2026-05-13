@@ -121,37 +121,39 @@ MECH_CATEGORIES: dict[str, dict] = {
     "디자인·폼팩터": {
         "color": "#7C3AED",
         "tokens": [
-            "design", "form factor", "thin", "slim", "foldable", "folding", "thickness",
-            "bezel", "notch", "chassis", "body", "frame", "profile", "aesthetic",
-            "industrial design", "enclosure", "casing", "housing",
-            "디자인", "폼팩터", "폴더블", "두께", "베젤", "외형", "케이스", "하우징",
+            "form factor", "foldable", "folding", "thickness", "bezel", "notch",
+            "chassis", "industrial design", "enclosure", "casing", "housing",
+            "slim profile", "flat design", "curved display",
+            "폼팩터", "폴더블", "접이식", "두께", "베젤", "외형", "케이스", "하우징", "디자인 언어",
         ],
     },
     "소재·재질": {
         "color": "#0891B2",
         "tokens": [
-            "titanium", "aluminum", "aluminium", "ceramic", "glass", "gorilla glass",
-            "sapphire", "carbon fiber", "stainless steel", "polymer", "material",
-            "alloy", "composite", "plastic", "metal", "coating", "finish", "anodize",
-            "티타늄", "알루미늄", "세라믹", "소재", "재질", "탄소섬유", "강화유리", "합금",
+            "titanium", "aluminum", "aluminium", "ceramic", "gorilla glass",
+            "sapphire", "carbon fiber", "stainless steel", "polymer",
+            "alloy", "composite", "anodized", "tempered glass",
+            "titanium alloy", "magnesium alloy",
+            "티타늄", "알루미늄", "세라믹", "재질", "탄소섬유", "강화유리", "합금", "소재 적용",
         ],
     },
     "사양·치수": {
         "color": "#059669",
         "tokens": [
-            "specs", "dimensions", "weight", "capacity", "resolution", "battery",
-            "mah", "watt", "megapixel", "aperture", "sensor", "display size",
-            "screen size", "inch", " mm", "gram", "specification", "tolerance",
-            "사양", "무게", "치수", "용량", "해상도", "배터리", "스펙", "공차",
+            "specs", "dimensions", "weight", "capacity", "resolution",
+            "mah", "watt", "megapixel", "aperture", "display size",
+            "screen size", "inch display", " mm thin", "specification", "tolerance",
+            "refresh rate", "nits",
+            "사양", "무게", "치수", "용량", "해상도", "배터리 용량", "스펙", "공차", "주사율",
         ],
     },
     "내구성·신뢰성": {
         "color": "#D97706",
         "tokens": [
             "drop test", "water resistant", "waterproof", "ip68", "ip67", "ip rating",
-            "mil-spec", "durability", "scratch", "shatter", "resistant", "protection",
-            "stress test", "bend test", "reliability",
-            "내구성", "방수", "방진", "강도", "내충격", "신뢰성", "굴곡 테스트",
+            "mil-spec", "durability", "scratch resistant", "shatter resistant",
+            "bend test", "reliability", "drop resistance",
+            "내구성", "방수", "방진", "강도", "내충격", "신뢰성", "굴곡 테스트", "충격 저항",
         ],
     },
     "제조·공정": {
@@ -159,24 +161,27 @@ MECH_CATEGORIES: dict[str, dict] = {
         "tokens": [
             "manufacturing", "assembly", "production", "factory", "supply chain",
             "cnc", "injection molding", "die casting", "machining", "fabrication",
-            "yield", "mass production", "tooling", "stamping", "forging",
-            "제조", "생산", "조립", "공정", "양산", "금형", "수율", "단조",
+            "mass production", "tooling", "stamping", "forging", "wafer",
+            "semiconductor process",
+            "제조", "생산", "조립", "공정", "양산", "금형", "수율", "단조", "반도체 공정",
         ],
     },
     "열관리·냉각": {
         "color": "#EF4444",
         "tokens": [
-            "thermal", "cooling", "heat", "temperature", "vapor chamber",
-            "heatsink", "heat pipe", "thermal management", "fan", "dissipation",
-            "발열", "냉각", "방열", "써멀", "온도", "베이퍼 챔버",
+            "thermal management", "cooling system", "vapor chamber",
+            "heatsink", "heat pipe", "heat dissipation", "thermal throttling",
+            "overheating", "cooling solution", "graphene cooling",
+            "발열 관리", "냉각 시스템", "방열", "써멀", "베이퍼 챔버", "발열 문제", "과열",
         ],
     },
     "구동·관절": {
         "color": "#8B5CF6",
         "tokens": [
-            "hinge", "actuator", "joint", "mechanism", "pivot", "fold",
-            "rotation", "torque", "linkage", "kinematic", "gear", "motor",
-            "힌지", "액추에이터", "관절", "메커니즘", "구동", "토크", "기어",
+            "hinge mechanism", "hinge system", "actuator", "joint", "pivot mechanism",
+            "rotation mechanism", "torque", "linkage", "kinematic", "servo",
+            "pneumatic", "hydraulic", "degrees of freedom", "end effector", "gear drive",
+            "힌지", "액추에이터", "관절", "구동 메커니즘", "토크", "기어 구동", "서보",
         ],
     },
 }
@@ -356,28 +361,52 @@ def _detect_sector_and_company(text: str, source_sector: str) -> tuple[str, str]
 
 
 def _detect_mech_category(text: str) -> str:
-    """기술 세부 카테고리 감지 (7종)."""
+    """기술 세부 카테고리 감지.
+    최소 매칭 임계치 적용. 소프트웨어/AI 컨텍스트 강하면 임계치 상향.
+    """
     low = text.lower()
-    best_cat, best_score = MECH_CATEGORY_GENERAL, 0
+
+    # 소프트웨어/서비스/AI 신호 — 강하면 하드웨어 분류 억제
+    sw_signals = [
+        "software", "application", "ai feature", "machine learning",
+        "deep learning", "large language model", "llm", "neural network",
+        "interface", "platform", "api", "chatgpt", "gemini", "copilot",
+        "artificial intelligence", "generative ai", "app update",
+        "소프트웨어", "인공지능 기능", "플랫폼", "서비스 출시", "앱 업데이트",
+    ]
+    sw_score = sum(1 for t in sw_signals if t in low)
+
+    scores: dict[str, int] = {}
     for cat_name, cat_info in MECH_CATEGORIES.items():
-        score = sum(1 for t in cat_info["tokens"] if t in low)
-        if score > best_score:
-            best_cat, best_score = cat_name, score
-    return best_cat
+        scores[cat_name] = sum(1 for t in cat_info["tokens"] if t in low)
+
+    best_cat = max(scores, key=lambda k: scores[k])
+    best_score = scores[best_cat]
+
+    # 기본 임계치 2, SW 신호 2개 이상이면 3으로 상향
+    threshold = 3 if sw_score >= 2 else 2
+
+    return best_cat if best_score >= threshold else MECH_CATEGORY_GENERAL
 
 
 def _detect_top_category(text: str, mech_cat: str) -> str:
     """상위 3분류 감지.
-
-    기술 세부 카테고리가 이미 감지됐으면 → 기술·개발.
-    아니면 마케팅·출시 / 사업·전략 키워드 순서로 확인.
+    마케팅 신호가 강하면 기술 분류보다 우선.
     """
-    if mech_cat != MECH_CATEGORY_GENERAL:
-        return "기술·개발"
     low = text.lower()
-    for cat_name in ("마케팅·출시", "사업·전략"):
-        if any(t in low for t in ARTICLE_CATEGORIES[cat_name]["tokens"]):
-            return cat_name
+    mkt_score = sum(1 for t in ARTICLE_CATEGORIES["마케팅·출시"]["tokens"] if t in low)
+    biz_score = sum(1 for t in ARTICLE_CATEGORIES["사업·전략"]["tokens"] if t in low)
+
+    if mech_cat != MECH_CATEGORY_GENERAL:
+        # 기술 분류됐어도 마케팅 신호가 강하면(3개 이상) 마케팅 우선
+        if mkt_score >= 3:
+            return "마케팅·출시"
+        return "기술·개발"
+
+    if mkt_score > 0 and mkt_score >= biz_score:
+        return "마케팅·출시"
+    if biz_score > 0:
+        return "사업·전략"
     return TOP_CATEGORY_GENERAL
 
 
