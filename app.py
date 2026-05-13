@@ -217,6 +217,30 @@ button[kind="secondary"]:hover {
     border-radius:4px !important;
     background:#FFFFFF !important;
 }
+
+/* ── 섹터·회사 구분 레이블 ─────────── */
+.sec-label {
+    display:flex; align-items:center; gap:8px;
+    margin-bottom:6px;
+}
+.sec-pill {
+    font-size:10px; font-weight:800; letter-spacing:1.2px;
+    padding:2px 10px; border-radius:999px;
+    white-space:nowrap; flex-shrink:0;
+}
+.sec-pill-sector  { background:#1428A0; color:#FFFFFF; }
+.sec-pill-company { background:#535353; color:#FFFFFF; }
+.sec-line {
+    flex:1; height:1px; background:#E6E6E6;
+}
+
+/* ── 섹터 버튼 크기 강조 ────────────
+   첫 번째 stHorizontalBlock = 섹터 행 */
+div[data-testid="stHorizontalBlock"]:first-of-type button {
+    font-size:13px !important;
+    padding:7px 6px !important;
+    font-weight:700 !important;
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -434,6 +458,11 @@ def _co_count(sector: str, company: str) -> int:
         return sum(1 for a in articles if a.sector == sector)
     return sum(1 for a in articles if a.sector == sector and a.company == company)
 
+st.markdown(
+    "<div class='sec-label'><span class='sec-pill sec-pill-sector'>섹터</span>"
+    "<div class='sec-line'></div></div>",
+    unsafe_allow_html=True,
+)
 sec_cols = st.columns(len(SECTORS))
 for col, sector_name in zip(sec_cols, SECTORS):
     cnt = sum(1 for a in articles if a.sector == sector_name)
@@ -456,6 +485,12 @@ companies = SECTORS[sel_sector]["companies"]
 all_cos = ["전체"] + list(companies.keys())
 per_row = 5
 
+st.markdown(
+    "<div class='sec-label' style='margin-top:14px;'>"
+    "<span class='sec-pill sec-pill-company'>회사</span>"
+    "<div class='sec-line'></div></div>",
+    unsafe_allow_html=True,
+)
 for row_i in range(math.ceil(len(all_cos) / per_row)):
     chunk = all_cos[row_i * per_row : (row_i + 1) * per_row]
     btn_cols = st.columns(len(chunk))
