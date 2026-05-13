@@ -127,14 +127,18 @@ div[data-testid="stHorizontalBlock"]:not(:first-of-type) > [data-testid="column"
 [data-testid="stHorizontalBlock"] [data-testid="column"] [data-testid="stHorizontalBlock"]:first-of-type button {
     font-size:10px !important;
     font-weight:600 !important;
-    padding:4px 3px !important;
+    padding:4px 2px !important;
+    white-space:pre-wrap !important;
+    line-height:1.2 !important;
 }
 
 /* ── Lv4: 세부 카테고리 필터 (3열 레이아웃 내부 두 번째+ HBlock) ── */
 [data-testid="stHorizontalBlock"] [data-testid="column"] [data-testid="stHorizontalBlock"]:not(:first-of-type) button {
     font-size:9px !important;
     font-weight:500 !important;
-    padding:2px 3px !important;
+    padding:2px 2px !important;
+    white-space:pre-wrap !important;
+    line-height:1.2 !important;
 }
 
 /* ── 로고 셀 균일화 ──────────────────── */
@@ -323,10 +327,9 @@ _init()
 # Simple Icons slug 매핑 (https://simpleicons.org)
 # 없는 브랜드는 initials fallback 사용
 _SIMPLE_ICONS: dict[str, str] = {
-    "samsung.com":          "samsung",
+    # samsung, oppo 제외: Simple Icons에서 워드마크 SVG라 소형에서 "---"로 보임
     "apple.com":            "apple",
     "huawei.com":           "huawei",
-    "oppo.com":             "oppo",
     "xiaomi.com":           "xiaomi",
     "google.com":           "google",
     "sony.com":             "sony",
@@ -338,12 +341,14 @@ _SIMPLE_ICONS: dict[str, str] = {
     "microsoft.com":        "microsoft",
     "nvidia.com":           "nvidia",
     "mistral.ai":           "mistral",
-    # xAI — Simple Icons에 없음, 이니셜로 대체
-    # Boston Dynamics / Figure AI / Agility / Unitree / 1X / Apptronik — 이니셜로 대체
 }
 
 # Simple Icons에 없는 브랜드 이니셜 + 색상
 _BRAND_INITIALS: dict[str, tuple[str, str]] = {
+    # 워드마크 SVG → 아이콘 대체
+    "samsung.com":          ("S",    "#1428A0"),   # Samsung Blue
+    "oppo.com":             ("O",    "#1E5EFF"),   # OPPO Blue
+    # 기타 스타트업 이니셜
     "x.ai":                 ("xAI",  "#1DA1F2"),
     "bostondynamics.com":   ("BD",   "#F97316"),
     "figure.ai":            ("FIG",  "#8B5CF6"),
@@ -615,12 +620,12 @@ with col_l:
     st.markdown(f"<div class='col-header'>{company_label} 뉴스 · {len(filtered)}건</div>",
                 unsafe_allow_html=True)
 
-    # 상위 3분류 필터 버튼 — 축약 레이블로 한 줄에 맞춤
+    # 상위 3분류 필터 버튼 — 2글자 이하 축약 + 카운트 한 줄 표시
     _TOP_SHORT = {
-        "전체": "전체",
-        "기술·개발": "기술개발",
-        "마케팅·출시": "마케팅",
-        "사업·전략": "사업전략",
+        "전체":              "전체",
+        "기술·개발":         "기술",
+        "마케팅·출시":        "마케팅",
+        "사업·전략":         "사업",
         TOP_CATEGORY_GENERAL: "일반",
     }
     top_cat_opts = ["전체"] + list(ARTICLE_CATEGORIES.keys()) + [TOP_CATEGORY_GENERAL]
@@ -629,7 +634,7 @@ with col_l:
         cnt = sum(1 for a in filtered_base if a.top_category == tc) if tc != "전체" else len(filtered_base)
         lbl = _TOP_SHORT.get(tc, tc)
         if col_tc.button(
-            f"{lbl}\n({cnt})",
+            f"{lbl}\n{cnt}",
             key=f"tc_{sel_sector}_{sel_company}_{tc}",
             use_container_width=True,
             type="primary" if sel_top_cat == tc else "secondary",
@@ -647,9 +652,11 @@ with col_l:
             mc_cols = st.columns(len(_chunk))
             for col_mc, mc in zip(mc_cols, _chunk):
                 cnt = sum(1 for a in filtered_top if a.mech_category == mc) if mc != "전체" else len(filtered_top)
-                lbl = mc.split("·")[0] if "·" in mc else mc
+                # 2글자로 줄임: "내구성" → "내구", "디자인" → "디자인" 유지
+                raw = mc.split("·")[0] if "·" in mc else mc
+                lbl = raw[:2] if len(raw) > 2 else raw
                 if col_mc.button(
-                    f"{lbl}\n({cnt})",
+                    f"{lbl}\n{cnt}",
                     key=f"mc_{sel_sector}_{sel_company}_{mc}",
                     use_container_width=True,
                     type="primary" if sel_mech_cat == mc else "secondary",
