@@ -32,113 +32,154 @@ st.set_page_config(
 # ─────────────────────────────────────────────
 st.markdown("""
 <style>
-html, body, [data-testid="stAppViewContainer"] { background:#0F172A; color:#E2E8F0; }
-[data-testid="stSidebar"] { background:#0B1426; }
+/* ── Samsung-inspired Design System ──────────────────────────
+   Primary  : #1428A0  (Samsung Blue)
+   Accent   : #00A9E0  (Samsung Cerulean)
+   BG-base  : #05071A  (Deep Samsung Navy)
+   BG-card  : #0C1232
+   BG-raise : #111A40
+   Text     : #F0F2F8 / #8B95B8
+   Radius   : 18px (Samsung One UI standard)
+──────────────────────────────────────────────────────────── */
 
-.radar-header {
-    background: linear-gradient(90deg,#0B1F3A,#1F6FEB);
-    padding:12px 22px; border-radius:10px; margin-bottom:10px;
-    display:flex; align-items:center; justify-content:space-between;
-}
-.radar-header h1 { margin:0; font-size:19px; color:#fff; }
-.radar-header p  { margin:0; font-size:11px; color:rgba(255,255,255,.75); }
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
 
-/* 회사 로고 그리드 */
-.company-grid { display:flex; flex-wrap:wrap; gap:6px; padding:8px 0 12px; }
-.company-pill {
-    display:flex; align-items:center; gap:6px;
-    background:#1E293B; border:1px solid #334155;
-    border-radius:8px; padding:5px 10px; cursor:pointer;
-    font-size:12px; color:#CBD5E1; transition:all .15s;
+html, body, [data-testid="stAppViewContainer"] {
+    background:#05071A !important; color:#F0F2F8;
+    font-family:'Inter', 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif;
 }
-.company-pill.active {
-    background:#1E3A5F; border-color:#1F6FEB; color:#fff;
-}
-.company-pill img { border-radius:3px; width:20px; height:20px; object-fit:contain; }
+[data-testid="stSidebar"]        { background:#030510; }
+[data-testid="stAppViewBlockContainer"] { padding-top:8px !important; }
+section[data-testid="stMain"] > div { padding-top:0 !important; }
 
-/* 섹터·회사 탭 버튼 */
+/* ── 헤더 ── */
+.mxp-header {
+    background: linear-gradient(135deg, #05071A 0%, #0A1240 50%, #1428A0 100%);
+    padding: 16px 24px; border-radius: 18px; margin-bottom: 14px;
+    border: 1px solid rgba(20,40,160,0.5);
+    box-shadow: 0 4px 24px rgba(20,40,160,0.25);
+}
+.mxp-header h1 {
+    margin:0; font-size:20px; font-weight:800; color:#fff;
+    letter-spacing:-0.3px;
+}
+.mxp-header h1 span { color:#00A9E0; }
+.mxp-header p  { margin:4px 0 0; font-size:11px; color:rgba(255,255,255,0.55); letter-spacing:.3px; }
+
+/* ── 버튼 (Streamlit 오버라이드) ── */
 div[data-testid="stHorizontalBlock"] button {
-    border-radius:8px !important; font-size:12px !important;
-    padding-top:3px !important; padding-bottom:3px !important;
+    border-radius:18px !important;
+    font-size:11px !important; font-weight:600 !important;
+    padding:4px 8px !important;
+    transition: all .15s !important;
 }
-/* 로고-버튼 간격 최소화 */
+button[kind="primary"] {
+    background:#1428A0 !important;
+    border-color:#1428A0 !important;
+    color:#fff !important;
+}
+button[kind="primary"]:hover {
+    background:#1E3FCC !important;
+    border-color:#1E3FCC !important;
+}
+button[kind="secondary"] {
+    background:#0C1232 !important;
+    border-color:rgba(20,40,160,0.35) !important;
+    color:#8B95B8 !important;
+}
+button[kind="secondary"]:hover {
+    border-color:#1428A0 !important;
+    color:#fff !important;
+}
+/* 로고-버튼 간격 */
 div[data-testid="stHorizontalBlock"] div[data-testid="stMarkdownContainer"] {
-    margin-bottom:-8px;
+    margin-bottom:-10px;
 }
 
-/* 뉴스 카드 */
+/* ── 뉴스 카드 ── */
 .news-card {
-    background:#1E293B; border-radius:8px; padding:10px 12px;
-    margin-bottom:7px; border-left:3px solid #334155;
+    background:#0C1232;
+    border-radius:14px;
+    padding:11px 14px;
+    margin-bottom:8px;
+    border: 1px solid rgba(20,40,160,0.2);
+    border-left: 3px solid rgba(20,40,160,0.4);
+    transition: border-color .15s;
 }
-.news-card.positive { border-left-color:#059669; }
-.news-card.negative { border-left-color:#DC2626; }
-.news-card.neutral  { border-left-color:#3B82F6; }
-.news-card.rumor    { border-left-color:#7C3AED; }
+.news-card.positive { border-left-color:#00B140; }
+.news-card.negative { border-left-color:#E4002B; }
+.news-card.neutral  { border-left-color:#1428A0; }
+.news-card.rumor    { border-left-color:#C800A1; }
 .news-card a        { text-decoration:none; color:inherit; }
-.news-title { font-size:13px; font-weight:600; line-height:1.4; margin-bottom:4px; }
-.news-meta  { font-size:11px; color:#64748B; display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+.news-card:hover    { border-color:rgba(20,40,160,0.5); }
+.news-title { font-size:13px; font-weight:600; line-height:1.45; margin-bottom:5px; color:#F0F2F8; }
+.news-meta  { font-size:11px; color:#4A5580; display:flex; gap:7px; flex-wrap:wrap; align-items:center; }
 
-/* 뱃지 */
-.badge { display:inline-block; padding:1px 7px; border-radius:4px;
-         font-size:10px; font-weight:700; line-height:1.6; }
-.b-pos   { background:#064E3B; color:#6EE7B7; }
-.b-neg   { background:#7F1D1D; color:#FCA5A5; }
-.b-neu   { background:#1E3A5F; color:#93C5FD; }
-.b-rumor { background:#3B0764; color:#E9D5FF; }
-.b-src   { background:#1E293B; color:#94A3B8; border:1px solid #334155; }
+/* ── 뱃지 ── */
+.badge { display:inline-block; padding:2px 8px; border-radius:99px;
+         font-size:10px; font-weight:700; line-height:1.5; }
+.b-pos   { background:rgba(0,177,64,0.15);  color:#00D44E; border:1px solid rgba(0,177,64,0.3); }
+.b-neg   { background:rgba(228,0,43,0.15);  color:#FF4D6D; border:1px solid rgba(228,0,43,0.3); }
+.b-neu   { background:rgba(20,40,160,0.15); color:#6690FF; border:1px solid rgba(20,40,160,0.3); }
+.b-rumor { background:rgba(200,0,161,0.15); color:#FF69E2; border:1px solid rgba(200,0,161,0.3); }
+.b-src   { background:rgba(255,255,255,0.04); color:#5A6485; border:1px solid rgba(255,255,255,0.08); }
 
-/* 루머 카드 */
+/* ── 루머 카드 ── */
 .rumor-card {
-    background:#1A0B2E; border:1px solid #4C1D95;
-    border-radius:8px; padding:11px 13px; margin-bottom:8px;
+    background:#0C1232;
+    border: 1px solid rgba(200,0,161,0.2);
+    border-top: 2px solid #C800A1;
+    border-radius:14px; padding:12px 14px; margin-bottom:8px;
 }
-.r-title   { font-size:13px; font-weight:600; color:#E9D5FF; line-height:1.4; margin-bottom:4px; }
-.r-orig    { font-size:10px; color:#7C3AED; margin-bottom:4px; }
-.r-summary { font-size:11px; color:#A78BFA; line-height:1.45; margin-bottom:5px; }
-.r-meta    { font-size:10px; color:#6D28D9; display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+.r-title   { font-size:13px; font-weight:600; color:#F0F2F8; line-height:1.4; margin-bottom:4px; }
+.r-orig    { font-size:10px; color:#C800A1; margin-bottom:4px; }
+.r-summary { font-size:11px; color:#6B7299; line-height:1.5; margin-bottom:5px; }
+.r-meta    { font-size:10px; color:#4A5580; display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
 
-/* 감성 바 */
-.ratio-bar { display:flex; border-radius:4px; overflow:hidden; height:10px; margin:6px 0 4px; }
+/* ── 감성 바 ── */
+.ratio-bar { display:flex; border-radius:99px; overflow:hidden; height:8px; margin:8px 0 5px; }
 
-/* 스크롤 */
-.scroll-box { max-height:68vh; overflow-y:auto; padding-right:3px; }
+/* ── 스크롤 ── */
+.scroll-box { max-height:68vh; overflow-y:auto; padding-right:4px; }
 .scroll-box::-webkit-scrollbar { width:3px; }
-.scroll-box::-webkit-scrollbar-thumb { background:#334155; border-radius:3px; }
+.scroll-box::-webkit-scrollbar-track { background:transparent; }
+.scroll-box::-webkit-scrollbar-thumb { background:rgba(20,40,160,0.4); border-radius:99px; }
 
-.col-header { font-size:14px; font-weight:700; color:#22D3EE;
-              border-bottom:1px solid #1E293B; padding-bottom:7px; margin-bottom:10px; }
-
-/* 기구개발 카테고리 배지 */
-.b-cat { display:inline-block; padding:1px 6px; border-radius:4px;
-         font-size:10px; font-weight:700; line-height:1.6; }
-.cat-design    { background:#3B0764; color:#DDD6FE; }
-.cat-material  { background:#083344; color:#67E8F9; }
-.cat-spec      { background:#064E3B; color:#6EE7B7; }
-.cat-durability{ background:#451A03; color:#FDE68A; }
-.cat-mfg       { background:#450A0A; color:#FCA5A5; }
-.cat-thermal   { background:#450A0A; color:#FCA5A5; }
-.cat-mech      { background:#2E1065; color:#E9D5FF; }
-.cat-general   { background:#1E293B; color:#94A3B8; }
-
-/* 상위 3분류 탭 */
-.top-cat-bar { display:flex; gap:6px; margin:8px 0 6px; }
-.top-cat-pill {
-    flex:1; text-align:center; padding:7px 4px; border-radius:8px;
-    font-size:12px; font-weight:700; cursor:default;
-    border:1px solid #334155;
+/* ── 컬럼 헤더 ── */
+.col-header {
+    font-size:13px; font-weight:700; color:#00A9E0;
+    border-bottom: 1px solid rgba(20,40,160,0.25);
+    padding-bottom:8px; margin-bottom:12px;
+    letter-spacing:.3px; text-transform:uppercase;
 }
-.top-cat-pill.tech    { background:#083344; color:#67E8F9; border-color:#0891B2; }
-.top-cat-pill.mkt     { background:#2E1065; color:#DDD6FE; border-color:#7C3AED; }
-.top-cat-pill.biz     { background:#064E3B; color:#6EE7B7; border-color:#059669; }
-.top-cat-pill.general { background:#1E293B; color:#94A3B8; }
 
-/* 카테고리 분포 행 */
-.cat-row { display:flex; align-items:center; gap:6px; margin-bottom:5px; padding:5px 8px;
-           background:#1E293B; border-radius:6px; cursor:default; }
-.cat-bar-bg { flex:1; height:6px; background:#0F172A; border-radius:3px; overflow:hidden; }
-.cat-bar    { height:6px; border-radius:3px; }
-.cat-count  { font-size:11px; color:#64748B; min-width:24px; text-align:right; }
+/* ── 카테고리 배지 (b-cat) ── */
+.b-cat { display:inline-block; padding:2px 7px; border-radius:99px;
+         font-size:10px; font-weight:600; line-height:1.5; }
+.cat-design    { background:rgba(104,91,199,0.2); color:#A99EF5; border:1px solid rgba(104,91,199,0.35); }
+.cat-material  { background:rgba(0,169,224,0.15); color:#5DD3F5; border:1px solid rgba(0,169,224,0.3); }
+.cat-spec      { background:rgba(0,177,64,0.15);  color:#5EE89A; border:1px solid rgba(0,177,64,0.3); }
+.cat-durability{ background:rgba(255,198,0,0.15); color:#FFD84D; border:1px solid rgba(255,198,0,0.3); }
+.cat-mfg       { background:rgba(228,0,43,0.15);  color:#FF7A8A; border:1px solid rgba(228,0,43,0.3); }
+.cat-thermal   { background:rgba(255,105,0,0.15); color:#FFB066; border:1px solid rgba(255,105,0,0.3); }
+.cat-mech      { background:rgba(200,0,161,0.15); color:#FF88EE; border:1px solid rgba(200,0,161,0.3); }
+.cat-general   { background:rgba(255,255,255,0.05); color:#4A5580; border:1px solid rgba(255,255,255,0.08); }
+
+/* ── 카테고리 분포 행 ── */
+.cat-row {
+    display:flex; align-items:center; gap:8px; margin-bottom:6px;
+    padding:6px 10px; background:#0C1232;
+    border-radius:12px; border:1px solid rgba(20,40,160,0.15);
+}
+.cat-bar-bg { flex:1; height:5px; background:rgba(255,255,255,0.05); border-radius:99px; overflow:hidden; }
+.cat-bar    { height:5px; border-radius:99px; }
+.cat-count  { font-size:11px; color:#4A5580; min-width:30px; text-align:right; font-weight:600; }
+
+/* ── Streamlit 기본 UI 정리 ── */
+[data-testid="stDecoration"] { display:none; }
+[data-testid="stStatusWidget"] { display:none; }
+footer { display:none !important; }
+#MainMenu { display:none !important; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -336,9 +377,9 @@ age = news_crawler.cache_age_seconds()
 age_str = f"{int(age//60)}분 전" if age else "방금"
 
 st.markdown(
-    f'<div class="radar-header">'
-    f'<div><h1>🔭 Mxplorer-news</h1>'
-    f'<p>Mobile · Robotics · AI &nbsp;|&nbsp; {age_str} · {len(articles)}건 · 5분마다 자동 갱신</p></div>'
+    f'<div class="mxp-header">'
+    f'<h1>🔭 Mx<span>plorer</span>-news</h1>'
+    f'<p>MOBILE &nbsp;·&nbsp; ROBOTICS &nbsp;·&nbsp; AI &nbsp;│&nbsp; {age_str} &nbsp;·&nbsp; {len(articles)}건 &nbsp;·&nbsp; auto-refresh 5min</p>'
     f'</div>',
     unsafe_allow_html=True,
 )
