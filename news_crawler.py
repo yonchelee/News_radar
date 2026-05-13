@@ -200,6 +200,7 @@ class RssSource(NamedTuple):
     sector: str       # "모바일" | "로보틱스" | "AI" | "기타"
     rumor_site: bool
     max_items: int = 15
+    is_domestic: bool = False   # 국내 소스 여부
 
 RSS_SOURCES: list[RssSource] = [
     # ── 모바일 ──────────────────────────────────────────
@@ -222,6 +223,10 @@ RSS_SOURCES: list[RssSource] = [
     RssSource("Bloomberg",    "https://feeds.bloomberg.com/technology/news.rss",      "기타", False, 10),
     RssSource("Reuters",      "https://feeds.reuters.com/reuters/technologyNews",     "기타", False, 10),
     RssSource("BBC Tech",     "https://feeds.bbci.co.uk/news/technology/rss.xml",    "기타", False, 10),
+    # ── 국내 소스 ────────────────────────────────────────
+    RssSource("삼성뉴스룸",   "https://news.samsung.com/kr/feed",                    "모바일", False, 15, True),
+    RssSource("전자신문",     "https://www.etnews.com/rss",                           "기타",  False, 10, True),
+    RssSource("지디넷코리아", "https://zdnet.co.kr/rss/",                             "기타",  False, 10, True),
 ]
 
 
@@ -238,6 +243,7 @@ class Article:
     sector: str = "기타"
     company: str = "기타"
     is_rumor: bool = False
+    is_domestic: bool = False   # 국내 소스 기사 여부
     title_ko: str = ""
     summary_ko: str = ""
     content: str = field(default="", repr=False)
@@ -475,6 +481,7 @@ def _make(title: str, link: str, published: str, summary: str, src: RssSource) -
         title=title, link=link, source=src.name, published=published,
         summary_raw=summary[:400], sector=sector, company=company,
         is_rumor=_detect_rumor(full, src.rumor_site),
+        is_domestic=src.is_domestic,
         mech_category=mech_cat,
         top_category=_detect_top_category(full, mech_cat),
     )

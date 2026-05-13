@@ -303,7 +303,8 @@ def _init():
     st.session_state.setdefault("selected_company", "전체")
     st.session_state.setdefault("selected_top_cat", "기술·개발")
     st.session_state.setdefault("selected_cat", "전체")
-    st.session_state.setdefault("selected_mid_cat", None)   # 중간 컬럼 카테고리 필터
+    st.session_state.setdefault("selected_mid_cat", None)
+    st.session_state.setdefault("show_korean", True)
     st.session_state.setdefault("last_refresh", None)
 _init()
 
@@ -415,9 +416,10 @@ def _source_badge(name: str) -> str:
     return f"<span class='badge b-src'>{html.escape(name)}</span>"
 
 
-def _news_card_html(art: news_crawler.Article, an: analyst.ArticleAnalysis) -> str:
+def _news_card_html(art: news_crawler.Article, an: analyst.ArticleAnalysis, use_ko: bool = True) -> str:
     extra = " rumor" if art.is_rumor else ""
-    safe_t = html.escape(art.display_title)
+    title_str = (art.title_ko if (use_ko and art.title_ko) else art.title) or art.title
+    safe_t = html.escape(title_str)
     logo = ""
     if art.logo_url:
         logo = _logo_img(
@@ -592,24 +594,36 @@ sel_mid_cat    = st.session_state.selected_mid_cat
 
 
 # ─────────────────────────────────────────────
-# ③ 3열 레이아웃
+# ③ 번역 토글
 # ─────────────────────────────────────────────
-col_l, col_m, col_r = st.columns([1.1, 1.3, 1.0], gap="medium")
+show_ko = st.session_state.show_korean
+_tog_label = "🇰🇷 한국어" if show_ko else "🌐 English"
+_tog_col, _ = st.columns([1, 7])
+with _tog_col:
+    if st.button(_tog_label, key="toggle_ko", use_container_width=True,
+                 type="primary" if show_ko else "secondary"):
+        st.session_state.show_korean = not show_ko
+        st.rerun()
 
+
+# ─────────────────────────────────────────────
+# ④ 상단 2열: 뉴스 리스트 | 카테고리 분석
+# ─────────────────────────────────────────────
+_TOP_SHORT = {
+    "전체":              "전체",
+    "기술·개발":         "기술",
+    "마케팅·출시":        "마케팅",
+    "사업·전략":         "사업",
+    TOP_CATEGORY_GENERAL: "일반",
+}
+
+col_news, col_analysis = st.columns([1, 1], gap="medium")
 
 # ── 좌: 뉴스 리스트 ──────────────────────────
-with col_l:
+with col_news:
     st.markdown(f"<div class='col-header'>{company_label} 뉴스 · {len(filtered)}건</div>",
                 unsafe_allow_html=True)
 
-    # 상위 3분류 필터 버튼 — 2글자 이하 축약 + 카운트 한 줄 표시
-    _TOP_SHORT = {
-        "전체":              "전체",
-        "기술·개발":         "기술",
-        "마케팅·출시":        "마케팅",
-        "사업·전략":         "사업",
-        TOP_CATEGORY_GENERAL: "일반",
-    }
     top_cat_opts = ["전체"] + list(ARTICLE_CATEGORIES.keys()) + [TOP_CATEGORY_GENERAL]
     tc_cols = st.columns(len(top_cat_opts))
     for col_tc, tc in zip(tc_cols, top_cat_opts):
@@ -624,7 +638,6 @@ with col_l:
             st.session_state.selected_cat = "전체"
             st.rerun()
 
-    # 기술·개발 선택시 세부 카테고리 필터 — 2행으로 분리, 축약 레이블
     if sel_top_cat == "기술·개발":
         mech_opts = ["전체"] + list(MECH_CATEGORIES.keys())
         _per_mc = 4
@@ -632,10 +645,9 @@ with col_l:
             _chunk = mech_opts[_ri * _per_mc : (_ri + 1) * _per_mc]
             mc_cols = st.columns(len(_chunk))
             for col_mc, mc in zip(mc_cols, _chunk):
-                cnt = sum(1 for a in filtered_top if a.mech_category == mc) if mc != "전체" else len(filtered_top)
                 lbl = mc.split("·")[0] if "·" in mc else mc
                 if col_mc.button(
-                    f"{lbl}",
+                    lbl,
                     key=f"mc_{sel_sector}_{sel_company}_{mc}",
                     use_container_width=True,
                     type="primary" if sel_mech_cat == mc else "secondary",
@@ -646,12 +658,12 @@ with col_l:
     if not filtered:
         st.info("해당 카테고리 기사가 없습니다.")
     else:
-        cards = "".join(_news_card_html(a, analyses[a.link]) for a in filtered)
+        cards = "".join(_news_card_html(a, analyses[a.link], show_ko) for a in filtered)
         st.markdown(f"<div class='scroll-box'>{cards}</div>", unsafe_allow_html=True)
 
 
-# ── 중: 카테고리 분석 ─────────────────────────
-with col_m:
+# ── 우: 카테고리 분석 ─────────────────────────
+with col_analysis:
     st.markdown(f"<div class='col-header'>카테고리 분석 · {company_label}</div>",
                 unsafe_allow_html=True)
 
@@ -676,7 +688,6 @@ with col_m:
             unsafe_allow_html=True,
         )
 
-        # 클릭 가능한 카테고리 행 — 버튼 + 막대 + 건수
         all_top_cats = list(ARTICLE_CATEGORIES.items()) + [
             (TOP_CATEGORY_GENERAL, {"color": "#D0D0D0"})
         ]
@@ -713,7 +724,6 @@ with col_m:
                     unsafe_allow_html=True,
                 )
 
-        # 카테고리 선택 시 → 해당 기사 목록
         if sel_mid_cat:
             mid_arts = [a for a in filtered_base if a.top_category == sel_mid_cat]
             disp = "일반뉴스" if sel_mid_cat == TOP_CATEGORY_GENERAL else sel_mid_cat
@@ -722,12 +732,11 @@ with col_m:
                 unsafe_allow_html=True,
             )
             if mid_arts:
-                cards = "".join(_news_card_html(a, analyses[a.link]) for a in mid_arts)
+                cards = "".join(_news_card_html(a, analyses[a.link], show_ko) for a in mid_arts)
                 st.markdown(f"<div class='scroll-box'>{cards}</div>", unsafe_allow_html=True)
             else:
                 st.info("해당 카테고리 기사가 없습니다.")
         else:
-            # 기술 세부 카테고리 breakdown
             tech_arts = [a for a in filtered_base if a.top_category == "기술·개발"]
             if tech_arts:
                 with st.expander(f"기술·개발 세부 분류  ({len(tech_arts)}건)", expanded=True):
@@ -738,23 +747,23 @@ with col_m:
                             continue
                         pct = round(cnt / len(tech_arts) * 100)
                         css = _CAT_CSS.get(mc_name, "cat-general")
+                        mc_color = mc_info["color"]
                         sub_rows += (
                             f"<div class='cat-row'>"
                             f"  <span class='badge b-cat {css}' style='min-width:76px;text-align:center;'>{mc_name}</span>"
-                            f"  <div class='cat-bar-bg'><div class='cat-bar' style='width:{pct}%;background:{mc_info['color']};'></div></div>"
+                            f"  <div class='cat-bar-bg'><div class='cat-bar' style='width:{pct}%;background:{mc_color};'></div></div>"
                             f"  <span class='cat-count'>{cnt}건</span>"
                             f"</div>"
                         )
                     st.markdown(sub_rows, unsafe_allow_html=True)
 
-            # 감성 분석
             pos = [a for a in filtered_base if analyses[a.link].sentiment == "positive"]
             neg = [a for a in filtered_base if analyses[a.link].sentiment == "negative"]
             with st.expander(f"감성 분석  (긍정 {len(pos)} / 부정 {len(neg)})", expanded=False):
                 st.markdown(_ratio_bar_html(len(pos), len(neg), total), unsafe_allow_html=True)
                 for art in (pos + neg):
                     an = analyses[art.link]
-                    safe_t = html.escape(art.display_title)
+                    safe_t = html.escape(art.title_ko if (show_ko and art.title_ko) else art.title)
                     st.markdown(
                         f"<div class='news-card {an.sentiment}' style='margin-bottom:5px;'>"
                         f"  <a href='{art.link}' target='_blank'>"
@@ -768,59 +777,80 @@ with col_m:
                     )
 
 
-# ── 우: 루머 피드 (선택 섹터) ──────────────────
-with col_r:
-    st.markdown(
-        f"<div class='col-header'>루머 &amp; 전망 · {sel_sector} · {len(rumors)}건</div>",
-        unsafe_allow_html=True,
+# ─────────────────────────────────────────────
+# ⑤ 하단 4열: 기사국내 | 기사해외 | 루머국내 | 루머해외
+# ─────────────────────────────────────────────
+st.markdown("<div style='margin-top:16px;'>", unsafe_allow_html=True)
+
+base_arts = [a for a in articles if a.sector == sel_sector
+             and (sel_company == "전체" or a.company == sel_company)]
+
+arts_dom  = [a for a in base_arts if not a.is_rumor and a.is_domestic]
+arts_intl = [a for a in base_arts if not a.is_rumor and not a.is_domestic]
+rum_dom   = [a for a in base_arts if a.is_rumor and a.is_domestic]
+rum_intl  = [a for a in base_arts if a.is_rumor and not a.is_domestic]
+
+col_ad, col_ai, col_rd, col_ri = st.columns(4, gap="small")
+
+
+def _rumor_card_html(art: news_crawler.Article, an: analyst.ArticleAnalysis, use_ko: bool = True) -> str:
+    domain = SECTORS.get(art.sector, {}).get("companies", {}).get(art.company, {}).get("domain", "")
+    logo_html = _logo_img(domain, 16) if domain else ""
+    title_str = (art.title_ko if (use_ko and art.title_ko) else art.title) or art.title
+    safe_t   = html.escape(title_str)
+    summary_str = (art.summary_ko if (use_ko and art.summary_ko) else art.summary_raw) or art.summary_raw
+    safe_sum = html.escape(
+        summary_str[:120] + "…" if len(summary_str) > 120 else summary_str
+    )
+    s_badge = _sentiment_badge(an.sentiment)
+    return (
+        f"<a href='{art.link}' target='_blank' style='text-decoration:none;'>"
+        f"<div class='rumor-card'>"
+        f"  <div class='r-meta' style='margin-bottom:5px;'>"
+        f"    {logo_html}<span style='color:#535353;font-size:11px;font-weight:600;margin-left:4px;'>"
+        f"      {art.company}</span> {s_badge}"
+        f"  </div>"
+        f"  <div class='r-title'>{safe_t}</div>"
+        f"  <div class='r-summary'>{safe_sum}</div>"
+        f"  <div class='r-meta'>{_source_badge(art.source)}"
+        f"    <span>{art.published_ago}</span></div>"
+        f"</div></a>"
     )
 
-    # 섹터별 루머 카운트 뱃지 — 선택 섹터는 파란색 강조
-    sector_counts = {s: sum(1 for a in all_rumors if a.sector == s) for s in SECTORS}
-    badges = " ".join(
-        f"<span class='badge {'b-neu' if s == sel_sector else 'b-src'}'>"
-        f"{s} {sector_counts[s]}</span>"
-        for s in SECTORS
-    )
-    st.markdown(f"<div style='margin-bottom:10px;'>{badges}</div>", unsafe_allow_html=True)
 
-    if not rumors:
-        st.info("수집된 루머/전망 기사가 없습니다.")
+with col_ad:
+    st.markdown(f"<div class='col-header'>기사 국내 · {len(arts_dom)}건</div>", unsafe_allow_html=True)
+    if arts_dom:
+        cards = "".join(_news_card_html(a, analyses[a.link], show_ko) for a in arts_dom)
+        st.markdown(f"<div class='scroll-box'>{cards}</div>", unsafe_allow_html=True)
     else:
-        rumor_parts = []
-        for art in rumors:
-            domain = SECTORS.get(art.sector, {}).get("companies", {}).get(art.company, {}).get("domain", "")
-            logo_html = _logo_img(domain, 18) if domain else ""
-            safe_t   = html.escape(art.display_title)
-            safe_sum = html.escape(
-                art.display_summary[:130] + "…"
-                if len(art.display_summary) > 130 else art.display_summary
-            )
-            orig_line = ""
-            if art.title_ko and art.title_ko != art.title:
-                orig_line = f"<div class='r-orig'>원문: {html.escape(art.title)}</div>"
-            s_badge = _sentiment_badge(analyses[art.link].sentiment)
+        st.info("없음")
 
-            rumor_parts.append(
-                f"<a href='{art.link}' target='_blank' style='text-decoration:none;'>"
-                f"<div class='rumor-card'>"
-                f"  <div class='r-meta' style='margin-bottom:5px;'>"
-                f"    {logo_html} <span style='color:#535353;font-size:11px;font-weight:600;margin-left:4px;'>"
-                f"      {art.company}</span>"
-                f"    {s_badge}"
-                f"  </div>"
-                f"  <div class='r-title'>{safe_t}</div>"
-                f"  {orig_line}"
-                f"  <div class='r-summary'>{safe_sum}</div>"
-                f"  <div class='r-meta'>{_source_badge(art.source)}"
-                f"    <span>{art.published_ago}</span></div>"
-                f"</div></a>"
-            )
+with col_ai:
+    st.markdown(f"<div class='col-header'>기사 해외 · {len(arts_intl)}건</div>", unsafe_allow_html=True)
+    if arts_intl:
+        cards = "".join(_news_card_html(a, analyses[a.link], show_ko) for a in arts_intl)
+        st.markdown(f"<div class='scroll-box'>{cards}</div>", unsafe_allow_html=True)
+    else:
+        st.info("없음")
 
-        st.markdown(
-            f"<div class='scroll-box'>{''.join(rumor_parts)}</div>",
-            unsafe_allow_html=True,
-        )
+with col_rd:
+    st.markdown(f"<div class='col-header'>루머 국내 · {len(rum_dom)}건</div>", unsafe_allow_html=True)
+    if rum_dom:
+        parts = "".join(_rumor_card_html(a, analyses[a.link], show_ko) for a in rum_dom)
+        st.markdown(f"<div class='scroll-box'>{parts}</div>", unsafe_allow_html=True)
+    else:
+        st.info("없음")
+
+with col_ri:
+    st.markdown(f"<div class='col-header'>루머 해외 · {len(rum_intl)}건</div>", unsafe_allow_html=True)
+    if rum_intl:
+        parts = "".join(_rumor_card_html(a, analyses[a.link], show_ko) for a in rum_intl)
+        st.markdown(f"<div class='scroll-box'>{parts}</div>", unsafe_allow_html=True)
+    else:
+        st.info("없음")
+
+st.markdown("</div>", unsafe_allow_html=True)
 
 
 # ─────────────────────────────────────────────
