@@ -274,6 +274,49 @@ div[data-testid="stHorizontalBlock"]:not(:first-of-type) > [data-testid="column"
     background:#FFFFFF !important;
 }
 
+/* ── 하단 4열 섹션 프레임 ─────────── */
+.sec-frame {
+    border: 2px solid #535353;
+    border-radius: 6px;
+    background: #FFFFFF;
+    overflow: hidden;
+    height: 100%;
+}
+.sec-frame-header {
+    background: #535353;
+    color: #FFFFFF;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: .8px;
+    text-transform: uppercase;
+    padding: 8px 12px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+.sec-frame-header .cnt {
+    background: rgba(255,255,255,0.2);
+    border-radius: 999px;
+    padding: 1px 7px;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0;
+}
+.sec-frame-body {
+    padding: 10px;
+    max-height: 55vh;
+    overflow-y: auto;
+}
+.sec-frame-body::-webkit-scrollbar { width: 4px; }
+.sec-frame-body::-webkit-scrollbar-track { background: #F4F4F4; }
+.sec-frame-body::-webkit-scrollbar-thumb { background: #B0B0B0; border-radius: 999px; }
+.sec-frame-empty {
+    padding: 20px 12px;
+    font-size: 11px;
+    color: #999999;
+    text-align: center;
+}
+
 /* ── 섹터·회사 구분 레이블 ─────────── */
 .sec-label {
     display:flex; align-items:center; gap:8px;
@@ -818,39 +861,32 @@ def _rumor_card_html(art: news_crawler.Article, an: analyst.ArticleAnalysis, use
     )
 
 
+def _sec_frame(title: str, icon: str, items_html: str, count: int) -> str:
+    body = items_html if items_html else "<div class='sec-frame-empty'>수집된 기사 없음</div>"
+    return (
+        f"<div class='sec-frame'>"
+        f"  <div class='sec-frame-header'>{icon} {title}"
+        f"    <span class='cnt'>{count}건</span></div>"
+        f"  <div class='sec-frame-body'>{body}</div>"
+        f"</div>"
+    )
+
+
 with col_ad:
-    st.markdown(f"<div class='col-header'>기사 국내 · {len(arts_dom)}건</div>", unsafe_allow_html=True)
-    if arts_dom:
-        cards = "".join(_news_card_html(a, analyses[a.link], show_ko) for a in arts_dom)
-        st.markdown(f"<div class='scroll-box'>{cards}</div>", unsafe_allow_html=True)
-    else:
-        st.info("없음")
+    items = "".join(_news_card_html(a, analyses[a.link], show_ko) for a in arts_dom)
+    st.markdown(_sec_frame("기사 국내", "🇰🇷", items, len(arts_dom)), unsafe_allow_html=True)
 
 with col_ai:
-    st.markdown(f"<div class='col-header'>기사 해외 · {len(arts_intl)}건</div>", unsafe_allow_html=True)
-    if arts_intl:
-        cards = "".join(_news_card_html(a, analyses[a.link], show_ko) for a in arts_intl)
-        st.markdown(f"<div class='scroll-box'>{cards}</div>", unsafe_allow_html=True)
-    else:
-        st.info("없음")
+    items = "".join(_news_card_html(a, analyses[a.link], show_ko) for a in arts_intl)
+    st.markdown(_sec_frame("기사 해외", "🌐", items, len(arts_intl)), unsafe_allow_html=True)
 
 with col_rd:
-    st.markdown(f"<div class='col-header'>루머 국내 · {len(rum_dom)}건</div>", unsafe_allow_html=True)
-    if rum_dom:
-        parts = "".join(_rumor_card_html(a, analyses[a.link], show_ko) for a in rum_dom)
-        st.markdown(f"<div class='scroll-box'>{parts}</div>", unsafe_allow_html=True)
-    else:
-        st.info("없음")
+    items = "".join(_rumor_card_html(a, analyses[a.link], show_ko) for a in rum_dom)
+    st.markdown(_sec_frame("루머 국내", "📡", items, len(rum_dom)), unsafe_allow_html=True)
 
 with col_ri:
-    st.markdown(f"<div class='col-header'>루머 해외 · {len(rum_intl)}건</div>", unsafe_allow_html=True)
-    if rum_intl:
-        parts = "".join(_rumor_card_html(a, analyses[a.link], show_ko) for a in rum_intl)
-        st.markdown(f"<div class='scroll-box'>{parts}</div>", unsafe_allow_html=True)
-    else:
-        st.info("없음")
-
-st.markdown("</div>", unsafe_allow_html=True)
+    items = "".join(_rumor_card_html(a, analyses[a.link], show_ko) for a in rum_intl)
+    st.markdown(_sec_frame("루머 해외", "📡", items, len(rum_intl)), unsafe_allow_html=True)
 
 
 # ─────────────────────────────────────────────
