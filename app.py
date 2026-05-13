@@ -32,154 +32,194 @@ st.set_page_config(
 # ─────────────────────────────────────────────
 st.markdown("""
 <style>
-/* ── Samsung-inspired Design System ──────────────────────────
-   Primary  : #1428A0  (Samsung Blue)
-   Accent   : #00A9E0  (Samsung Cerulean)
-   BG-base  : #05071A  (Deep Samsung Navy)
-   BG-card  : #0C1232
-   BG-raise : #111A40
-   Text     : #F0F2F8 / #8B95B8
-   Radius   : 18px (Samsung One UI standard)
-──────────────────────────────────────────────────────────── */
+/* ══════════════════════════════════════════════════════
+   Mxplorer-news — Samsung.com Light Theme
+   ──────────────────────────────────────────────────────
+   BG        : #FFFFFF / #F4F4F4
+   Text      : #1C1C1C / #535353 / #999999
+   Blue      : #1428A0  (Samsung Blue)
+   Blue-lite : #0089D0
+   Green     : #00B140  (Samsung Green)
+   Red       : #E4002B  (Samsung Red)
+   Magenta   : #C800A1  (Samsung Magenta)
+   Border    : #E6E6E6
+   Radius    : 4px cards · 999px pills
+   Font      : SamsungOne → Apple SD Gothic Neo → system
+══════════════════════════════════════════════════════ */
 
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
-
-html, body, [data-testid="stAppViewContainer"] {
-    background:#05071A !important; color:#F0F2F8;
-    font-family:'Inter', 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif;
+@font-face {
+  font-family:'SamsungOne';
+  src:url('https://cdn.jsdelivr.net/gh/Samsung/SamsungOne@main/SamsungOne-400.woff2') format('woff2');
+  font-weight:400; font-style:normal;
 }
-[data-testid="stSidebar"]        { background:#030510; }
-[data-testid="stAppViewBlockContainer"] { padding-top:8px !important; }
-section[data-testid="stMain"] > div { padding-top:0 !important; }
 
-/* ── 헤더 ── */
+html, body,
+[data-testid="stAppViewContainer"],
+[data-testid="stMain"] {
+    background:#F4F4F4 !important;
+    color:#1C1C1C !important;
+    font-family:'SamsungOne','Apple SD Gothic Neo','Malgun Gothic',
+                'Noto Sans KR','Helvetica Neue',Arial,sans-serif;
+}
+[data-testid="stSidebar"] { background:#FFFFFF; border-right:1px solid #E6E6E6; }
+[data-testid="stAppViewBlockContainer"] { padding-top:12px !important; }
+[data-testid="stDecoration"], [data-testid="stStatusWidget"],
+footer, #MainMenu { display:none !important; }
+
+/* ── 헤더 ─────────────────────────────── */
 .mxp-header {
-    background: linear-gradient(135deg, #05071A 0%, #0A1240 50%, #1428A0 100%);
-    padding: 16px 24px; border-radius: 18px; margin-bottom: 14px;
-    border: 1px solid rgba(20,40,160,0.5);
-    box-shadow: 0 4px 24px rgba(20,40,160,0.25);
+    background:#FFFFFF;
+    padding:18px 28px 16px;
+    border-bottom:2px solid #1428A0;
+    margin-bottom:16px;
+    box-shadow:0 2px 12px rgba(0,0,0,0.06);
 }
 .mxp-header h1 {
-    margin:0; font-size:20px; font-weight:800; color:#fff;
-    letter-spacing:-0.3px;
+    margin:0; font-size:22px; font-weight:700;
+    color:#1C1C1C; letter-spacing:-0.5px;
 }
-.mxp-header h1 span { color:#00A9E0; }
-.mxp-header p  { margin:4px 0 0; font-size:11px; color:rgba(255,255,255,0.55); letter-spacing:.3px; }
+.mxp-header h1 span { color:#1428A0; }
+.mxp-header p {
+    margin:4px 0 0; font-size:11px;
+    color:#999999; letter-spacing:.2px;
+}
 
-/* ── 버튼 (Streamlit 오버라이드) ── */
+/* ── Streamlit 버튼 ────────────────────── */
 div[data-testid="stHorizontalBlock"] button {
-    border-radius:18px !important;
-    font-size:11px !important; font-weight:600 !important;
-    padding:4px 8px !important;
-    transition: all .15s !important;
+    border-radius:4px !important;
+    font-size:11px !important;
+    font-weight:600 !important;
+    padding:4px 6px !important;
+    transition:all .12s !important;
 }
 button[kind="primary"] {
     background:#1428A0 !important;
     border-color:#1428A0 !important;
-    color:#fff !important;
+    color:#FFFFFF !important;
 }
-button[kind="primary"]:hover {
-    background:#1E3FCC !important;
-    border-color:#1E3FCC !important;
-}
+button[kind="primary"]:hover  { background:#1034C8 !important; }
 button[kind="secondary"] {
-    background:#0C1232 !important;
-    border-color:rgba(20,40,160,0.35) !important;
-    color:#8B95B8 !important;
+    background:#FFFFFF !important;
+    border-color:#D0D0D0 !important;
+    color:#535353 !important;
 }
 button[kind="secondary"]:hover {
     border-color:#1428A0 !important;
-    color:#fff !important;
+    color:#1428A0 !important;
 }
 /* 로고-버튼 간격 */
 div[data-testid="stHorizontalBlock"] div[data-testid="stMarkdownContainer"] {
     margin-bottom:-10px;
 }
 
-/* ── 뉴스 카드 ── */
+/* ── 뉴스 카드 ─────────────────────────── */
 .news-card {
-    background:#0C1232;
-    border-radius:14px;
-    padding:11px 14px;
+    background:#FFFFFF;
+    border-radius:4px;
+    padding:12px 14px;
     margin-bottom:8px;
-    border: 1px solid rgba(20,40,160,0.2);
-    border-left: 3px solid rgba(20,40,160,0.4);
-    transition: border-color .15s;
+    border:1px solid #E6E6E6;
+    border-left:3px solid #D0D0D0;
+    box-shadow:0 1px 4px rgba(0,0,0,0.05);
+    transition:box-shadow .12s, border-left-color .12s;
 }
+.news-card:hover    { box-shadow:0 4px 16px rgba(0,0,0,0.10); }
 .news-card.positive { border-left-color:#00B140; }
 .news-card.negative { border-left-color:#E4002B; }
 .news-card.neutral  { border-left-color:#1428A0; }
 .news-card.rumor    { border-left-color:#C800A1; }
 .news-card a        { text-decoration:none; color:inherit; }
-.news-card:hover    { border-color:rgba(20,40,160,0.5); }
-.news-title { font-size:13px; font-weight:600; line-height:1.45; margin-bottom:5px; color:#F0F2F8; }
-.news-meta  { font-size:11px; color:#4A5580; display:flex; gap:7px; flex-wrap:wrap; align-items:center; }
+.news-title {
+    font-size:13px; font-weight:600;
+    line-height:1.5; margin-bottom:6px; color:#1C1C1C;
+}
+.news-meta {
+    font-size:11px; color:#999999;
+    display:flex; gap:7px; flex-wrap:wrap; align-items:center;
+}
 
-/* ── 뱃지 ── */
-.badge { display:inline-block; padding:2px 8px; border-radius:99px;
-         font-size:10px; font-weight:700; line-height:1.5; }
-.b-pos   { background:rgba(0,177,64,0.15);  color:#00D44E; border:1px solid rgba(0,177,64,0.3); }
-.b-neg   { background:rgba(228,0,43,0.15);  color:#FF4D6D; border:1px solid rgba(228,0,43,0.3); }
-.b-neu   { background:rgba(20,40,160,0.15); color:#6690FF; border:1px solid rgba(20,40,160,0.3); }
-.b-rumor { background:rgba(200,0,161,0.15); color:#FF69E2; border:1px solid rgba(200,0,161,0.3); }
-.b-src   { background:rgba(255,255,255,0.04); color:#5A6485; border:1px solid rgba(255,255,255,0.08); }
+/* ── 뱃지 ─────────────────────────────── */
+.badge {
+    display:inline-block; padding:2px 9px;
+    border-radius:999px;
+    font-size:10px; font-weight:700; line-height:1.6;
+}
+.b-pos   { background:#E6F7EC; color:#00873A; border:1px solid #B3E6C8; }
+.b-neg   { background:#FDECEA; color:#C00020; border:1px solid #F5B8BE; }
+.b-neu   { background:#EEF1FB; color:#1428A0; border:1px solid #C4CDEE; }
+.b-rumor { background:#FCE8F8; color:#A0007E; border:1px solid #EAB3DC; }
+.b-src   { background:#F4F4F4; color:#767676; border:1px solid #E0E0E0; }
 
-/* ── 루머 카드 ── */
+/* ── 루머 카드 ─────────────────────────── */
 .rumor-card {
-    background:#0C1232;
-    border: 1px solid rgba(200,0,161,0.2);
-    border-top: 2px solid #C800A1;
-    border-radius:14px; padding:12px 14px; margin-bottom:8px;
+    background:#FFFFFF;
+    border:1px solid #E6E6E6;
+    border-top:3px solid #C800A1;
+    border-radius:4px;
+    padding:12px 14px; margin-bottom:8px;
+    box-shadow:0 1px 4px rgba(0,0,0,0.05);
 }
-.r-title   { font-size:13px; font-weight:600; color:#F0F2F8; line-height:1.4; margin-bottom:4px; }
+.r-title   { font-size:13px; font-weight:600; color:#1C1C1C; line-height:1.45; margin-bottom:4px; }
 .r-orig    { font-size:10px; color:#C800A1; margin-bottom:4px; }
-.r-summary { font-size:11px; color:#6B7299; line-height:1.5; margin-bottom:5px; }
-.r-meta    { font-size:10px; color:#4A5580; display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+.r-summary { font-size:11px; color:#535353; line-height:1.55; margin-bottom:6px; }
+.r-meta    { font-size:10px; color:#999999; display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
 
-/* ── 감성 바 ── */
-.ratio-bar { display:flex; border-radius:99px; overflow:hidden; height:8px; margin:8px 0 5px; }
+/* ── 감성 바 ─────────────────────────── */
+.ratio-bar {
+    display:flex; border-radius:999px;
+    overflow:hidden; height:7px; margin:8px 0 6px;
+}
 
-/* ── 스크롤 ── */
+/* ── 스크롤 ─────────────────────────── */
 .scroll-box { max-height:68vh; overflow-y:auto; padding-right:4px; }
-.scroll-box::-webkit-scrollbar { width:3px; }
-.scroll-box::-webkit-scrollbar-track { background:transparent; }
-.scroll-box::-webkit-scrollbar-thumb { background:rgba(20,40,160,0.4); border-radius:99px; }
+.scroll-box::-webkit-scrollbar { width:4px; }
+.scroll-box::-webkit-scrollbar-track { background:#F4F4F4; }
+.scroll-box::-webkit-scrollbar-thumb { background:#D0D0D0; border-radius:999px; }
 
-/* ── 컬럼 헤더 ── */
+/* ── 컬럼 헤더 ─────────────────────── */
 .col-header {
-    font-size:13px; font-weight:700; color:#00A9E0;
-    border-bottom: 1px solid rgba(20,40,160,0.25);
+    font-size:12px; font-weight:700; color:#1428A0;
+    border-bottom:1px solid #E6E6E6;
     padding-bottom:8px; margin-bottom:12px;
-    letter-spacing:.3px; text-transform:uppercase;
+    letter-spacing:.5px; text-transform:uppercase;
 }
 
-/* ── 카테고리 배지 (b-cat) ── */
-.b-cat { display:inline-block; padding:2px 7px; border-radius:99px;
-         font-size:10px; font-weight:600; line-height:1.5; }
-.cat-design    { background:rgba(104,91,199,0.2); color:#A99EF5; border:1px solid rgba(104,91,199,0.35); }
-.cat-material  { background:rgba(0,169,224,0.15); color:#5DD3F5; border:1px solid rgba(0,169,224,0.3); }
-.cat-spec      { background:rgba(0,177,64,0.15);  color:#5EE89A; border:1px solid rgba(0,177,64,0.3); }
-.cat-durability{ background:rgba(255,198,0,0.15); color:#FFD84D; border:1px solid rgba(255,198,0,0.3); }
-.cat-mfg       { background:rgba(228,0,43,0.15);  color:#FF7A8A; border:1px solid rgba(228,0,43,0.3); }
-.cat-thermal   { background:rgba(255,105,0,0.15); color:#FFB066; border:1px solid rgba(255,105,0,0.3); }
-.cat-mech      { background:rgba(200,0,161,0.15); color:#FF88EE; border:1px solid rgba(200,0,161,0.3); }
-.cat-general   { background:rgba(255,255,255,0.05); color:#4A5580; border:1px solid rgba(255,255,255,0.08); }
+/* ── 카테고리 배지 ─────────────────── */
+.b-cat {
+    display:inline-block; padding:2px 8px;
+    border-radius:999px; font-size:10px;
+    font-weight:600; line-height:1.6;
+}
+.cat-design    { background:#F0EEFF; color:#4B3BBF; border:1px solid #CEC8F5; }
+.cat-material  { background:#E6F5FC; color:#005B8A; border:1px solid #B3D9EE; }
+.cat-spec      { background:#E6F7EC; color:#00612A; border:1px solid #B3E0C8; }
+.cat-durability{ background:#FFF8E1; color:#8A6000; border:1px solid #FFE599; }
+.cat-mfg       { background:#FDECEA; color:#A0001A; border:1px solid #F5B8BE; }
+.cat-thermal   { background:#FFF0E6; color:#8A3200; border:1px solid #FFCBA8; }
+.cat-mech      { background:#FCE8F8; color:#7A0060; border:1px solid #EAB3DC; }
+.cat-general   { background:#F4F4F4; color:#767676; border:1px solid #E0E0E0; }
 
-/* ── 카테고리 분포 행 ── */
+/* ── 카테고리 분포 행 ─────────────── */
 .cat-row {
-    display:flex; align-items:center; gap:8px; margin-bottom:6px;
-    padding:6px 10px; background:#0C1232;
-    border-radius:12px; border:1px solid rgba(20,40,160,0.15);
+    display:flex; align-items:center; gap:8px;
+    margin-bottom:6px; padding:7px 10px;
+    background:#FFFFFF; border-radius:4px;
+    border:1px solid #E6E6E6;
+    box-shadow:0 1px 3px rgba(0,0,0,0.04);
 }
-.cat-bar-bg { flex:1; height:5px; background:rgba(255,255,255,0.05); border-radius:99px; overflow:hidden; }
-.cat-bar    { height:5px; border-radius:99px; }
-.cat-count  { font-size:11px; color:#4A5580; min-width:30px; text-align:right; font-weight:600; }
+.cat-bar-bg {
+    flex:1; height:5px;
+    background:#F4F4F4; border-radius:999px; overflow:hidden;
+}
+.cat-bar    { height:5px; border-radius:999px; }
+.cat-count  { font-size:11px; color:#999999; min-width:30px; text-align:right; font-weight:600; }
 
-/* ── Streamlit 기본 UI 정리 ── */
-[data-testid="stDecoration"] { display:none; }
-[data-testid="stStatusWidget"] { display:none; }
-footer { display:none !important; }
-#MainMenu { display:none !important; }
+/* ── Expander 스타일 ─────────────── */
+[data-testid="stExpander"] {
+    border:1px solid #E6E6E6 !important;
+    border-radius:4px !important;
+    background:#FFFFFF !important;
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -237,11 +277,12 @@ _BRAND_INITIALS: dict[str, tuple[str, str]] = {
 def _logo_img(domain: str, size: int = 20) -> str:
     slug = _SIMPLE_ICONS.get(domain)
     if slug:
-        si = f"https://cdn.simpleicons.org/{slug}/white"
+        # 라이트 테마: 각 브랜드 기본 색상 사용 (배경 흰색이므로 색상 아이콘이 더 잘 보임)
+        si = f"https://cdn.simpleicons.org/{slug}"
         fb = f"https://www.google.com/s2/favicons?domain={domain}&sz=64"
         return (
             f'<img src="{si}" width="{size}" height="{size}" '
-            f'style="border-radius:3px;object-fit:contain;vertical-align:middle;filter:drop-shadow(0 0 1px #fff4);" '
+            f'style="border-radius:3px;object-fit:contain;vertical-align:middle;" '
             f'onerror="this.onerror=null;this.src=\'{fb}\'">'
         )
     # 이니셜 뱃지 (Simple Icons에 없는 브랜드)
@@ -250,9 +291,9 @@ def _logo_img(domain: str, size: int = 20) -> str:
         fs = max(7, size // 3)
         return (
             f'<span style="display:inline-flex;align-items:center;justify-content:center;'
-            f'width:{size}px;height:{size}px;background:{bg};border-radius:4px;'
+            f'width:{size}px;height:{size}px;background:{bg};border-radius:3px;'
             f'font-size:{fs}px;font-weight:800;color:#fff;vertical-align:middle;'
-            f'letter-spacing:-0.5px;">{text}</span>'
+            f'letter-spacing:-0.5px;box-shadow:0 1px 3px rgba(0,0,0,0.15);">{text}</span>'
         )
     fb = f"https://www.google.com/s2/favicons?domain={domain}&sz=64"
     return (
