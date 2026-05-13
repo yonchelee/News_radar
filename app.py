@@ -247,7 +247,11 @@ st.markdown(GLOBAL_CSS, unsafe_allow_html=True)
 def _init_state() -> None:
     ss = st.session_state
     ss.setdefault("articles", [])
-    ss.setdefault("sources", ["google", "geeknews"])
+    ss.setdefault("sources", [
+        "google", "geeknews",
+        "zdnetkr", "ddaily", "venturesquare",
+        "thelec", "irobotnews", "epnc",
+    ])
     ss.setdefault("selected_idx", None)
     ss.setdefault("summary", "")
     ss.setdefault("chat_history", [])  # [{role, content}]
@@ -302,19 +306,45 @@ with st.sidebar:
 
     st.markdown("---")
     st.markdown("### 📡 데이터 소스")
-    source_options = {
-        "Google News (키워드 검색)": "google",
-        "Geeknews (news.hada.io)": "geeknews",
+
+    # 카테고리별 그룹 + checkbox. 기본: 한국어 소스 활성, 영문 비활성
+    DEFAULT_ACTIVE = {
+        "google", "geeknews",
+        "zdnetkr", "ddaily", "venturesquare",
+        "thelec", "irobotnews", "epnc",
     }
-    selected_sources_labels = st.multiselect(
-        "활성 소스",
-        options=list(source_options.keys()),
-        default=list(source_options.keys()),
-        help="여러 소스 동시 활성 가능. 비우면 결과 없음.",
-        label_visibility="collapsed",
-    )
-    st.session_state.sources = [source_options[l] for l in selected_sources_labels]
-    if not st.session_state.sources:
+
+    if "sources" not in st.session_state or not isinstance(st.session_state.sources, list):
+        st.session_state.sources = sorted(DEFAULT_ACTIVE)
+
+    col_a, col_b = st.columns(2)
+    if col_a.button("전체 선택", use_container_width=True, key="src_all"):
+        st.session_state.sources = list(news_crawler.SOURCES.keys())
+        st.rerun()
+    if col_b.button("모두 해제", use_container_width=True, key="src_none"):
+        st.session_state.sources = []
+        st.rerun()
+
+    # 카테고리별 그룹화
+    by_cat: dict[str, list] = {}
+    for k, s in news_crawler.SOURCES.items():
+        by_cat.setdefault(s.category, []).append(s)
+
+    new_selection: list[str] = []
+    for cat_key, cat_label in news_crawler.CATEGORY_LABELS.items():
+        srcs = by_cat.get(cat_key, [])
+        if not srcs:
+            continue
+        active_in_cat = sum(1 for s in srcs if s.key in st.session_state.sources)
+        with st.expander(f"{cat_label} ({active_in_cat}/{len(srcs)})", expanded=(cat_key in {"kw","kr-it","kr-component"})):
+            for s in srcs:
+                checked = s.key in st.session_state.sources
+                lang_badge = "한" if s.language == "ko" else "EN"
+                if st.checkbox(f"{s.name}  ·  {lang_badge}", value=checked, key=f"src_cb_{s.key}"):
+                    new_selection.append(s.key)
+    st.session_state.sources = new_selection
+
+    if not new_selection:
         st.warning("최소 1개 소스를 선택하세요.")
 
     st.markdown("---")

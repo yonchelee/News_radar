@@ -1,10 +1,15 @@
-"""뉴스 크롤링 모듈.
+"""뉴스 크롤링 — 다중 RSS 소스 통합.
 
-Google News RSS를 사용하여 한국어 기술 뉴스를 수집하고,
-선행기구개발 그룹 관심 키워드로 필터링한다.
+Source registry 기반. 카테고리별 그룹 + 병렬 fetch + 실패 silent skip.
+
+소스 추가 방법:
+    SOURCES["my_source"] = Source(
+        name="My Source", url="https://...", category="mobile", language="ko"
+    )
 """
 from __future__ import annotations
 
+import concurrent.futures
 import html
 import re
 import time
@@ -17,32 +22,102 @@ import feedparser
 import requests
 from bs4 import BeautifulSoup
 
-# 선행기구개발 그룹 관심 키워드 (검색 + 필터)
-SEARCH_KEYWORDS: list[str] = [
-    "모바일 힌지",
-    "폴더블 힌지",
-    "EV 배터리 케이스",
-    "전기차 배터리 팩",
-    "전기차 부품",
-    "신소재 부품",
-    "마그네슘 합금 부품",
-    "탄소복합소재 부품",
-    "갤럭시 폴드 힌지",
-    "스마트폰 방열",
-]
 
-# 필터링 시 본문/제목에 포함되어야 하는 단어 (느슨한 OR 매칭)
+# ---------------------------------------------------------------------------
+# 키워드 (Google News 키워드 검색용 + 필터링용)
+# ---------------------------------------------------------------------------
+SEARCH_KEYWORDS: list[str] = [
+    "모바일 힌지", "폴더블 힌지", "EV 배터리 케이스", "전기차 배터리 팩",
+    "전기차 부품", "신소재 부품", "마그네슘 합금 부품", "탄소복합소재 부품",
+    "갤럭시 폴드 힌지", "스마트폰 방열",
+]
 FILTER_TOKENS: list[str] = [
     "모바일", "스마트폰", "폴더블", "힌지",
     "전기차", "EV", "배터리", "배터리팩", "셀", "팩",
     "부품", "소재", "신소재", "합금", "복합소재", "방열",
     "케이스", "기구", "사출", "다이캐스팅", "프레스",
+    # 영문 토큰 (영문 소스 필터링용)
+    "mobile", "smartphone", "foldable", "hinge", "iphone", "galaxy", "pixel",
+    "ev", "battery", "tesla", "byd", "lithium", "solid-state",
+    "material", "alloy", "magnesium", "composite", "carbon fiber",
+    "thermal", "cooling", "die-casting", "injection",
 ]
 
+
+# ---------------------------------------------------------------------------
+# Source registry
+# ---------------------------------------------------------------------------
+@dataclass
+class Source:
+    key: str
+    name: str
+    url: str
+    category: str      # "global" | "mobile" | "ev" | "community" | "kr-it" | "kr-component" | "kw"
+    language: str      # "en" | "ko"
+    apply_filter: bool = False   # FILTER_TOKENS 적용 여부 (잡음 많은 일반 소스만 True)
+
+
+SOURCES: dict[str, Source] = {
+    # --- 키워드 기반 검색 (Google News) ---
+    "google":      Source("google", "Google News (키워드)", "", "kw", "ko"),
+
+    # --- Geeknews (특수: 큐레이션) ---
+    "geeknews":    Source("geeknews", "Geeknews", "https://feeds.feedburner.com/geeknews-feed", "kr-it", "ko"),
+
+    # --- 글로벌 테크 일반 ---
+    "hackernews":  Source("hackernews", "Hacker News", "https://news.ycombinator.com/rss", "global", "en", True),
+    "theverge":    Source("theverge", "The Verge", "https://www.theverge.com/rss/index.xml", "global", "en", True),
+    "engadget":    Source("engadget", "Engadget", "https://www.engadget.com/rss.xml", "global", "en", True),
+    "techcrunch":  Source("techcrunch", "TechCrunch", "https://techcrunch.com/feed/", "global", "en", True),
+    "arstechnica": Source("arstechnica", "Ars Technica", "https://feeds.arstechnica.com/arstechnica/index", "global", "en", True),
+    "macrumors":   Source("macrumors", "MacRumors", "https://feeds.macrumors.com/MacRumors-All", "global", "en", True),
+
+    # --- 모바일 / 스마트폰 ---
+    "gsmarena":    Source("gsmarena", "GSMArena", "https://www.gsmarena.com/rss-news-reviews.php3", "mobile", "en"),
+    "9to5google":  Source("9to5google", "9to5Google", "https://9to5google.com/feed/", "mobile", "en"),
+    "9to5mac":     Source("9to5mac", "9to5Mac", "https://9to5mac.com/feed/", "mobile", "en"),
+    "androidauth": Source("androidauth", "Android Authority", "https://www.androidauthority.com/feed/", "mobile", "en"),
+    "xda":         Source("xda", "XDA Developers", "https://www.xda-developers.com/feed/", "mobile", "en"),
+
+    # --- EV / 배터리 ---
+    "electrek":    Source("electrek", "Electrek", "https://electrek.co/feed/", "ev", "en"),
+    "insideevs":   Source("insideevs", "InsideEVs", "https://insideevs.com/rss/articles/all/", "ev", "en"),
+    "cleantech":   Source("cleantech", "CleanTechnica", "https://cleantechnica.com/feed/", "ev", "en", True),
+    "evannex":     Source("evannex", "EVannex", "https://evannex.com/blogs/news.atom", "ev", "en"),
+
+    # --- 커뮤니티 ---
+    "r_android":   Source("r_android", "r/Android", "https://www.reddit.com/r/Android/.rss", "community", "en"),
+    "r_ev":        Source("r_ev", "r/electric_vehicles", "https://www.reddit.com/r/electric_vehicles/.rss", "community", "en"),
+    "r_gadgets":   Source("r_gadgets", "r/gadgets", "https://www.reddit.com/r/gadgets/.rss", "community", "en", True),
+
+    # --- 국내 IT ---
+    "zdnetkr":     Source("zdnetkr", "ZDNet Korea", "https://feeds.feedburner.com/zdkorea", "kr-it", "ko", True),
+    "ddaily":      Source("ddaily", "디지털데일리", "https://feeds.feedburner.com/ddaily", "kr-it", "ko", True),
+    "venturesquare": Source("venturesquare", "벤처스퀘어", "https://www.venturesquare.net/feed", "kr-it", "ko", True),
+
+    # --- 국내 부품/소재/산업 ---
+    "thelec":      Source("thelec", "The Elec (전자부품)", "https://www.thelec.kr/rss/allArticle.xml", "kr-component", "ko"),
+    "irobotnews":  Source("irobotnews", "로봇신문", "https://www.irobotnews.com/rss/allArticle.xml", "kr-component", "ko", True),
+    "epnc":        Source("epnc", "전자부품뉴스", "https://www.epnc.co.kr/rss/allArticle.xml", "kr-component", "ko"),
+}
+
+CATEGORY_LABELS = {
+    "kw":           "🔍 키워드 검색",
+    "global":       "🌐 글로벌 테크",
+    "mobile":       "📱 모바일",
+    "ev":           "🔋 EV·배터리",
+    "community":    "💬 커뮤니티",
+    "kr-it":        "🇰🇷 국내 IT",
+    "kr-component": "⚙️ 부품·소재",
+}
+
 GOOGLE_NEWS_RSS = "https://news.google.com/rss/search?q={query}&hl=ko&gl=KR&ceid=KR:ko"
-GEEKNEWS_RSS = "https://feeds.feedburner.com/geeknews-feed"
+DEFAULT_AGENT = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"
 
 
+# ---------------------------------------------------------------------------
+# Article
+# ---------------------------------------------------------------------------
 @dataclass
 class Article:
     title: str
@@ -52,13 +127,17 @@ class Article:
     summary_raw: str = ""
     matched_keyword: str = ""
     content: str = field(default="", repr=False)
+    source_category: str = ""
 
     @property
     def published_dt(self) -> datetime:
-        try:
-            return datetime.strptime(self.published, "%a, %d %b %Y %H:%M:%S %Z")
-        except Exception:
-            return datetime.now(tz=timezone.utc)
+        for fmt in ("%a, %d %b %Y %H:%M:%S %Z", "%a, %d %b %Y %H:%M:%S %z",
+                    "%Y-%m-%dT%H:%M:%S%z", "%Y-%m-%dT%H:%M:%SZ"):
+            try:
+                return datetime.strptime(self.published, fmt)
+            except Exception:
+                continue
+        return datetime.now(tz=timezone.utc)
 
 
 def _clean_text(text: str) -> str:
@@ -75,17 +154,13 @@ def _matches_filter(text: str) -> bool:
     return any(tok.lower() in lowered for tok in FILTER_TOKENS)
 
 
-def fetch_geeknews(
-    max_entries: int = 50,
-    filter_keywords: bool = True,
-) -> list[Article]:
-    """Geeknews (news.hada.io) RSS — feedburner 호스팅.
-
-    filter_keywords=True 면 FILTER_TOKENS 매칭만 통과 (기구개발 관심 기사만).
-    False 면 전체 50개 그대로 반환 (Geeknews 자체 큐레이션 신뢰).
-    """
+# ---------------------------------------------------------------------------
+# Source fetchers
+# ---------------------------------------------------------------------------
+def _fetch_rss_generic(src: Source, max_entries: int = 50) -> list[Article]:
+    """일반 RSS 소스 fetcher."""
     try:
-        feed = feedparser.parse(GEEKNEWS_RSS, agent="Mozilla/5.0")
+        feed = feedparser.parse(src.url, agent=DEFAULT_AGENT)
     except Exception:
         return []
     out: list[Article] = []
@@ -97,88 +172,127 @@ def fetch_geeknews(
             continue
         summary_raw = _clean_text(getattr(entry, "summary", ""))
         full_text = f"{title} {summary_raw}"
-        matched = ""
-        if filter_keywords:
-            if not _matches_filter(full_text):
-                continue
-            for tok in FILTER_TOKENS:
-                if tok.lower() in full_text.lower():
-                    matched = tok
-                    break
+        if src.apply_filter and not _matches_filter(full_text):
+            continue
+        # 매칭 키워드 추정
+        matched = src.name
+        for tok in FILTER_TOKENS:
+            if tok.lower() in full_text.lower():
+                matched = tok
+                break
         seen.add(link)
-        out.append(
-            Article(
-                title=title,
-                link=link,
-                source="Geeknews",
-                published=getattr(entry, "published", ""),
-                summary_raw=summary_raw,
-                matched_keyword=matched or "Geeknews",
-            )
-        )
+        out.append(Article(
+            title=title, link=link,
+            source=src.name,
+            published=getattr(entry, "published", "") or getattr(entry, "updated", ""),
+            summary_raw=summary_raw,
+            matched_keyword=matched,
+            source_category=src.category,
+        ))
     return out
 
 
-def fetch_articles(
-    keywords: Iterable[str] | None = None,
-    max_per_keyword: int = 8,
-) -> list[Article]:
-    """키워드별로 Google News RSS를 조회하여 Article 리스트를 반환."""
-    keywords = list(keywords) if keywords else SEARCH_KEYWORDS
+def _fetch_google_news(max_per_keyword: int = 5) -> list[Article]:
+    """Google News RSS — 키워드 검색."""
     seen: set[str] = set()
-    articles: list[Article] = []
-
-    for kw in keywords:
+    out: list[Article] = []
+    for kw in SEARCH_KEYWORDS:
         url = GOOGLE_NEWS_RSS.format(query=urllib.parse.quote(kw))
         try:
-            feed = feedparser.parse(url)
+            feed = feedparser.parse(url, agent=DEFAULT_AGENT)
         except Exception:
             continue
-
         for entry in feed.entries[:max_per_keyword]:
             link = getattr(entry, "link", "")
             title = _clean_text(getattr(entry, "title", ""))
             if not link or not title or link in seen:
                 continue
-
             summary_raw = _clean_text(getattr(entry, "summary", ""))
             source = ""
             if getattr(entry, "source", None):
                 source = getattr(entry.source, "title", "") or ""
             if not source and " - " in title:
                 source = title.rsplit(" - ", 1)[-1]
-
-            full_text = f"{title} {summary_raw}"
-            if not _matches_filter(full_text):
+            if not _matches_filter(f"{title} {summary_raw}"):
                 continue
-
             seen.add(link)
-            articles.append(
-                Article(
-                    title=title,
-                    link=link,
-                    source=source,
-                    published=getattr(entry, "published", ""),
-                    summary_raw=summary_raw,
-                    matched_keyword=kw,
-                )
-            )
-
-    articles.sort(key=lambda a: a.published_dt, reverse=True)
-    return articles
+            out.append(Article(
+                title=title, link=link,
+                source=f"Google News · {source}" if source else "Google News",
+                published=getattr(entry, "published", ""),
+                summary_raw=summary_raw, matched_keyword=kw,
+                source_category="kw",
+            ))
+    return out
 
 
+def fetch_source(source_key: str) -> list[Article]:
+    """소스 키 하나에 대해 fetch."""
+    if source_key == "google":
+        return _fetch_google_news()
+    src = SOURCES.get(source_key)
+    if not src or not src.url:
+        return []
+    return _fetch_rss_generic(src)
+
+
+# ---------------------------------------------------------------------------
+# Aggregator + 캐시
+# ---------------------------------------------------------------------------
+_CACHE: dict[str, tuple[float, list[Article]]] = {}
+_CACHE_TTL_SEC = 60 * 60  # 1시간
+
+
+def get_cached_articles(
+    force_refresh: bool = False,
+    sources: list[str] | None = None,
+    max_parallel: int = 8,
+) -> list[Article]:
+    """다중 소스 병렬 fetch + 통합 캐시."""
+    sources = sources or list(SOURCES.keys())
+    cache_key = ",".join(sorted(sources))
+    now = time.time()
+    cached = _CACHE.get(cache_key)
+    if not force_refresh and cached and (now - cached[0]) < _CACHE_TTL_SEC:
+        return cached[1]
+
+    combined: list[Article] = []
+    seen_links: set[str] = set()
+
+    # 병렬 fetch (실패 silent skip)
+    with concurrent.futures.ThreadPoolExecutor(max_workers=max_parallel) as ex:
+        future_to_key = {ex.submit(fetch_source, k): k for k in sources}
+        for fut in concurrent.futures.as_completed(future_to_key, timeout=60):
+            try:
+                arts = fut.result()
+            except Exception:
+                continue
+            for a in arts:
+                if a.link in seen_links:
+                    continue
+                seen_links.add(a.link)
+                combined.append(a)
+
+    combined.sort(key=lambda a: a.published_dt, reverse=True)
+    _CACHE[cache_key] = (now, combined)
+    return combined
+
+
+def cache_age_seconds(sources: list[str] | None = None) -> float | None:
+    sources = sources or list(SOURCES.keys())
+    cache_key = ",".join(sorted(sources))
+    cached = _CACHE.get(cache_key)
+    return time.time() - cached[0] if cached else None
+
+
+# ---------------------------------------------------------------------------
+# 기사 본문 추출 (변경 없음)
+# ---------------------------------------------------------------------------
 def fetch_article_body(url: str, timeout: int = 8) -> str:
-    """기사 원문 페이지에서 본문 텍스트를 추출 (best-effort).
-
-    Google News는 redirect를 사용하므로 requests가 final URL을 따라간다.
-    완벽한 본문 추출은 어려우므로 <p> 태그 결합 방식으로 근사한다.
-    """
     headers = {
         "User-Agent": (
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-            "AppleWebKit/537.36 (KHTML, like Gecko) "
-            "Chrome/124.0 Safari/537.36"
+            "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36"
         ),
         "Accept-Language": "ko-KR,ko;q=0.9,en;q=0.8",
     }
@@ -189,50 +303,21 @@ def fetch_article_body(url: str, timeout: int = 8) -> str:
         return f"[본문 수집 실패: {exc}]"
 
     soup = BeautifulSoup(resp.text, "lxml")
-
     for tag in soup(["script", "style", "nav", "footer", "aside", "header"]):
         tag.decompose()
-
     article_tag = soup.find("article") or soup.find(id=re.compile("article|content", re.I))
     target = article_tag if article_tag else soup
-
     paragraphs = [p.get_text(" ", strip=True) for p in target.find_all("p")]
     paragraphs = [p for p in paragraphs if len(p) > 30]
     body = "\n".join(paragraphs[:40])
-    return body or "[본문이 비어 있습니다. 사이트 구조 차이로 추출에 실패했을 수 있습니다.]"
+    return body or "[본문이 비어 있습니다.]"
 
 
-# 캐시: (timestamp, articles)
-_CACHE: dict[str, tuple[float, list[Article]]] = {}
-_CACHE_TTL_SEC = 60 * 60  # 1시간
+# 하위 호환
+def fetch_articles(*args, **kwargs):
+    """이전 시그니처 호환 wrapper."""
+    return _fetch_google_news()
 
 
-def get_cached_articles(
-    force_refresh: bool = False,
-    sources: list[str] | None = None,
-) -> list[Article]:
-    """소스별 캐시. sources=['google','geeknews'] 둘 다 또는 하나만."""
-    sources = sources or ["google", "geeknews"]
-    cache_key = ",".join(sorted(sources))
-    now = time.time()
-    cached = _CACHE.get(cache_key)
-    if not force_refresh and cached and (now - cached[0]) < _CACHE_TTL_SEC:
-        return cached[1]
-    combined: list[Article] = []
-    if "google" in sources:
-        combined.extend(fetch_articles())
-    if "geeknews" in sources:
-        combined.extend(fetch_geeknews(filter_keywords=False))
-    # 발행 시각 역순 (최신 먼저)
-    combined.sort(key=lambda a: a.published_dt, reverse=True)
-    _CACHE[cache_key] = (now, combined)
-    return combined
-
-
-def cache_age_seconds(sources: list[str] | None = None) -> float | None:
-    sources = sources or ["google", "geeknews"]
-    cache_key = ",".join(sorted(sources))
-    cached = _CACHE.get(cache_key)
-    if not cached:
-        return None
-    return time.time() - cached[0]
+def fetch_geeknews(*args, **kwargs):
+    return _fetch_rss_generic(SOURCES["geeknews"])
