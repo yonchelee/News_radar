@@ -123,22 +123,26 @@ div[data-testid="stHorizontalBlock"]:not(:first-of-type) > [data-testid="column"
     padding:5px 4px !important;
 }
 
-/* ── Lv3: 상위 카테고리 필터 (3열 레이아웃 내부 첫 번째 HBlock) ── */
+/* ── Lv3: 상위 카테고리 필터 ── */
 [data-testid="stHorizontalBlock"] [data-testid="column"] [data-testid="stHorizontalBlock"]:first-of-type button {
-    font-size:10px !important;
+    font-size:9px !important;
     font-weight:600 !important;
-    padding:4px 2px !important;
-    white-space:pre-wrap !important;
-    line-height:1.2 !important;
+    padding:3px 2px !important;
+    white-space:nowrap !important;
+    overflow:hidden !important;
+    text-overflow:ellipsis !important;
+    line-height:1.3 !important;
 }
 
-/* ── Lv4: 세부 카테고리 필터 (3열 레이아웃 내부 두 번째+ HBlock) ── */
+/* ── Lv4: 세부 카테고리 필터 ── */
 [data-testid="stHorizontalBlock"] [data-testid="column"] [data-testid="stHorizontalBlock"]:not(:first-of-type) button {
-    font-size:9px !important;
+    font-size:8px !important;
     font-weight:500 !important;
-    padding:2px 2px !important;
-    white-space:pre-wrap !important;
-    line-height:1.2 !important;
+    padding:2px 1px !important;
+    white-space:nowrap !important;
+    overflow:hidden !important;
+    text-overflow:ellipsis !important;
+    line-height:1.3 !important;
 }
 
 /* ── 로고 셀 균일화 ──────────────────── */
@@ -637,7 +641,7 @@ with col_l:
         cnt = sum(1 for a in filtered_base if a.top_category == tc) if tc != "전체" else len(filtered_base)
         lbl = _TOP_SHORT.get(tc, tc)
         if col_tc.button(
-            f"{lbl}\n{cnt}",
+            f"{lbl} {cnt}",
             key=f"tc_{sel_sector}_{sel_company}_{tc}",
             use_container_width=True,
             type="primary" if sel_top_cat == tc else "secondary",
@@ -659,7 +663,7 @@ with col_l:
                 raw = mc.split("·")[0] if "·" in mc else mc
                 lbl = raw[:2] if len(raw) > 2 else raw
                 if col_mc.button(
-                    f"{lbl}\n{cnt}",
+                    f"{lbl} {cnt}",
                     key=f"mc_{sel_sector}_{sel_company}_{mc}",
                     use_container_width=True,
                     type="primary" if sel_mech_cat == mc else "secondary",
