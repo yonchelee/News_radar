@@ -91,10 +91,11 @@ ARTICLE_CATEGORIES: dict[str, dict] = {
             "launch", "launches", "launched", "release", "releases", "released",
             "announce", "announces", "announced", "announcement",
             "reveal", "reveals", "revealed", "unveil", "unveils", "unveiled",
+            "update", "updates", "updated", "introduces", "introduced",
             "event", "keynote", "hands-on", "first look", "official",
             "available", "pre-order", "on sale", "price", "pricing",
             "campaign", "advertisement", "promo", "limited edition",
-            "출시", "발표", "공개", "이벤트", "키노트", "출시가", "가격", "예약", "한정판",
+            "출시", "발표", "공개", "이벤트", "키노트", "출시가", "가격", "예약", "한정판", "업데이트",
         ],
     },
     "사업·전략": {
@@ -178,10 +179,10 @@ MECH_CATEGORIES: dict[str, dict] = {
     "구동·관절": {
         "color": "#8B5CF6",
         "tokens": [
-            "hinge mechanism", "hinge system", "actuator", "joint", "pivot mechanism",
-            "rotation mechanism", "torque", "linkage", "kinematic", "servo",
-            "pneumatic", "hydraulic", "degrees of freedom", "end effector", "gear drive",
-            "힌지", "액추에이터", "관절", "구동 메커니즘", "토크", "기어 구동", "서보",
+            "hinge", "hinge mechanism", "hinge system", "actuator", "joint",
+            "pivot mechanism", "rotation mechanism", "torque", "linkage", "kinematic",
+            "servo", "pneumatic", "hydraulic", "degrees of freedom", "end effector",
+            "gear drive", "힌지", "액추에이터", "관절", "구동 메커니즘", "토크", "기어 구동", "서보",
         ],
     },
 }
