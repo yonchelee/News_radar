@@ -662,7 +662,7 @@ def _demo_articles() -> list[Article]:
 # 캐시
 # ─────────────────────────────────────────────
 _CACHE: dict[str, tuple[float, list[Article]]] = {}
-_TTL = 3600
+_TTL = 300   # 5분 (브라우저 자동 새로고침 주기와 동일)
 is_demo_mode: bool = False
 
 

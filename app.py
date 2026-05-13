@@ -21,8 +21,8 @@ from news_crawler import (
 )
 
 st.set_page_config(
-    page_title="뉴스 레이더",
-    page_icon="📡",
+    page_title="Mxplorer-news",
+    page_icon="🔭",
     layout="wide",
     initial_sidebar_state="collapsed",
 )
@@ -160,6 +160,7 @@ _init()
 # 헬퍼
 # ─────────────────────────────────────────────
 # Simple Icons slug 매핑 (https://simpleicons.org)
+# 없는 브랜드는 initials fallback 사용
 _SIMPLE_ICONS: dict[str, str] = {
     "samsung.com":          "samsung",
     "apple.com":            "apple",
@@ -174,23 +175,45 @@ _SIMPLE_ICONS: dict[str, str] = {
     "anthropic.com":        "anthropic",
     "meta.com":             "meta",
     "microsoft.com":        "microsoft",
-    "x.ai":                 "xai",
     "nvidia.com":           "nvidia",
     "mistral.ai":           "mistral",
-    "bostondynamics.com":   "bostondynamics",
+    # xAI — Simple Icons에 없음, 이니셜로 대체
+    # Boston Dynamics / Figure AI / Agility / Unitree / 1X / Apptronik — 이니셜로 대체
+}
+
+# Simple Icons에 없는 브랜드 이니셜 + 색상
+_BRAND_INITIALS: dict[str, tuple[str, str]] = {
+    "x.ai":                 ("xAI",  "#1DA1F2"),
+    "bostondynamics.com":   ("BD",   "#F97316"),
+    "figure.ai":            ("FIG",  "#8B5CF6"),
+    "agilityrobotics.com":  ("AR",   "#10B981"),
+    "unitree.com":          ("UNI",  "#EF4444"),
+    "1x.tech":              ("1X",   "#F59E0B"),
+    "apptronik.com":        ("APT",  "#6366F1"),
 }
 
 
 def _logo_img(domain: str, size: int = 20) -> str:
     slug = _SIMPLE_ICONS.get(domain)
-    fb   = f"https://www.google.com/s2/favicons?domain={domain}&sz=64"
     if slug:
         si = f"https://cdn.simpleicons.org/{slug}/white"
+        fb = f"https://www.google.com/s2/favicons?domain={domain}&sz=64"
         return (
             f'<img src="{si}" width="{size}" height="{size}" '
             f'style="border-radius:3px;object-fit:contain;vertical-align:middle;filter:drop-shadow(0 0 1px #fff4);" '
             f'onerror="this.onerror=null;this.src=\'{fb}\'">'
         )
+    # 이니셜 뱃지 (Simple Icons에 없는 브랜드)
+    if domain in _BRAND_INITIALS:
+        text, bg = _BRAND_INITIALS[domain]
+        fs = max(7, size // 3)
+        return (
+            f'<span style="display:inline-flex;align-items:center;justify-content:center;'
+            f'width:{size}px;height:{size}px;background:{bg};border-radius:4px;'
+            f'font-size:{fs}px;font-weight:800;color:#fff;vertical-align:middle;'
+            f'letter-spacing:-0.5px;">{text}</span>'
+        )
+    fb = f"https://www.google.com/s2/favicons?domain={domain}&sz=64"
     return (
         f'<img src="{fb}" width="{size}" height="{size}" '
         f'style="border-radius:3px;object-fit:contain;vertical-align:middle;">'
@@ -284,15 +307,23 @@ def _ratio_bar_html(pos: int, neg: int, total: int) -> str:
 
 
 # ─────────────────────────────────────────────
-# 데이터 로드
+# 데이터 로드 + 5분 자동 새로고침
 # ─────────────────────────────────────────────
-def refresh(force: bool = False):
+_AUTO_REFRESH_SEC = 300   # 5분
+
+# 메타 태그로 브라우저 자동 새로고침
+st.markdown(
+    f'<meta http-equiv="refresh" content="{_AUTO_REFRESH_SEC}">',
+    unsafe_allow_html=True,
+)
+
+def _load():
     with st.spinner("뉴스 수집 중..."):
-        st.session_state.articles = news_crawler.get_cached_articles(force_refresh=force)
+        st.session_state.articles = news_crawler.get_cached_articles(force_refresh=False)
     st.session_state.last_refresh = datetime.now()
 
 if not st.session_state.articles:
-    refresh()
+    _load()
 
 articles: list[news_crawler.Article] = st.session_state.articles
 analyses: dict[str, analyst.ArticleAnalysis] = {a.link: analyst.analyze_article(a) for a in articles}
@@ -304,20 +335,13 @@ analyses: dict[str, analyst.ArticleAnalysis] = {a.link: analyst.analyze_article(
 age = news_crawler.cache_age_seconds()
 age_str = f"{int(age//60)}분 전" if age else "방금"
 
-hcol1, hcol2 = st.columns([5, 1])
-with hcol1:
-    st.markdown(
-        f'<div class="radar-header">'
-        f'<div><h1>📡 선행기구개발그룹 뉴스 레이더</h1>'
-        f'<p>모바일 · 로보틱스 · AI 실시간 뉴스 분석 &nbsp;|&nbsp; {age_str} · {len(articles)}건</p></div>'
-        f'</div>',
-        unsafe_allow_html=True,
-    )
-with hcol2:
-    st.write("")
-    if st.button("🔄 새로고침", use_container_width=True):
-        refresh(force=True)
-        st.rerun()
+st.markdown(
+    f'<div class="radar-header">'
+    f'<div><h1>🔭 Mxplorer-news</h1>'
+    f'<p>Mobile · Robotics · AI &nbsp;|&nbsp; {age_str} · {len(articles)}건 · 5분마다 자동 갱신</p></div>'
+    f'</div>',
+    unsafe_allow_html=True,
+)
 
 if news_crawler.is_demo_mode:
     st.warning("⚠️ **데모 모드** — 샘플 데이터 표시 중. 로컬 PC / Streamlit Cloud에서 실제 뉴스 수집.", icon="📡")
