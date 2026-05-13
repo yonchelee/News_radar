@@ -15,7 +15,7 @@ import streamlit as st
 
 import analyst
 import news_crawler
-from news_crawler import SECTORS
+from news_crawler import SECTORS, MECH_CATEGORIES, MECH_CATEGORY_GENERAL
 
 st.set_page_config(
     page_title="뉴스 레이더",
@@ -105,6 +105,25 @@ div[data-testid="stHorizontalBlock"] div[data-testid="stMarkdownContainer"] {
 
 .col-header { font-size:14px; font-weight:700; color:#22D3EE;
               border-bottom:1px solid #1E293B; padding-bottom:7px; margin-bottom:10px; }
+
+/* 기구개발 카테고리 배지 */
+.b-cat { display:inline-block; padding:1px 6px; border-radius:4px;
+         font-size:10px; font-weight:700; line-height:1.6; }
+.cat-design    { background:#3B0764; color:#DDD6FE; }
+.cat-material  { background:#083344; color:#67E8F9; }
+.cat-spec      { background:#064E3B; color:#6EE7B7; }
+.cat-durability{ background:#451A03; color:#FDE68A; }
+.cat-mfg       { background:#450A0A; color:#FCA5A5; }
+.cat-thermal   { background:#450A0A; color:#FCA5A5; }
+.cat-mech      { background:#2E1065; color:#E9D5FF; }
+.cat-general   { background:#1E293B; color:#94A3B8; }
+
+/* 카테고리 분포 행 */
+.cat-row { display:flex; align-items:center; gap:6px; margin-bottom:5px; padding:5px 8px;
+           background:#1E293B; border-radius:6px; cursor:default; }
+.cat-bar-bg { flex:1; height:6px; background:#0F172A; border-radius:3px; overflow:hidden; }
+.cat-bar    { height:6px; border-radius:3px; }
+.cat-count  { font-size:11px; color:#64748B; min-width:24px; text-align:right; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -161,6 +180,24 @@ def _logo_img(domain: str, size: int = 20) -> str:
     )
 
 
+_CAT_CSS = {
+    "디자인·폼팩터":  "cat-design",
+    "소재·재질":      "cat-material",
+    "사양·치수":      "cat-spec",
+    "내구성·신뢰성":  "cat-durability",
+    "제조·공정":      "cat-mfg",
+    "열관리·냉각":    "cat-thermal",
+    "힌지·메커니즘":  "cat-mech",
+    MECH_CATEGORY_GENERAL: "cat-general",
+}
+
+def _category_badge(cat: str) -> str:
+    info = MECH_CATEGORIES.get(cat, {})
+    emoji = info.get("emoji", "📰")
+    cls   = _CAT_CSS.get(cat, "cat-general")
+    return f"<span class='badge b-cat {cls}'>{emoji} {cat}</span>"
+
+
 def _sentiment_badge(s: str) -> str:
     m = {"positive": ("b-pos","▲ 긍정"), "negative": ("b-neg","▼ 부정"), "neutral": ("b-neu","● 중립")}
     cls, lbl = m.get(s, ("b-neu","● 중립"))
@@ -181,13 +218,14 @@ def _news_card_html(art: news_crawler.Article, an: analyst.ArticleAnalysis) -> s
             size=16
         ) + " "
     rumor_badge = "<span class='badge b-rumor'>📡 루머</span> " if art.is_rumor else ""
+    cat_badge = _category_badge(art.mech_category)
     return (
         f"<div class='news-card {an.sentiment}{extra}'>"
         f"<a href='{art.link}' target='_blank'>"
         f"  <div class='news-title'>{logo}{safe_t}</div>"
         f"</a>"
         f"<div class='news-meta'>"
-        f"  {rumor_badge}{_sentiment_badge(an.sentiment)}"
+        f"  {cat_badge} {rumor_badge}{_sentiment_badge(an.sentiment)}"
         f"  {_source_badge(art.source)}"
         f"  <span>{art.published_ago}</span>"
         f"</div></div>"
@@ -323,14 +361,23 @@ for row_i in range(rows):
 # ─────────────────────────────────────────────
 # 필터링된 기사
 # ─────────────────────────────────────────────
-def _filtered(sector: str, company: str) -> list[news_crawler.Article]:
-    return [
+def _filtered(sector: str, company: str, cat: str = "전체") -> list[news_crawler.Article]:
+    arts = [
         a for a in articles
         if a.sector == sector and (company == "전체" or a.company == company)
     ]
+    if cat != "전체":
+        arts = [a for a in arts if a.mech_category == cat]
+    return arts
 
-filtered = _filtered(sel_sector, sel_company)
-rumors   = [a for a in articles if a.is_rumor]
+# 카테고리 필터 상태
+if "selected_cat" not in st.session_state:
+    st.session_state.selected_cat = "전체"
+
+company_label = sel_company if sel_company != "전체" else f"{sel_sector} 전체"
+filtered_all  = _filtered(sel_sector, sel_company)           # 카테고리 필터 없는 전체
+filtered      = _filtered(sel_sector, sel_company, st.session_state.selected_cat)
+rumors        = [a for a in articles if a.is_rumor]
 
 
 # ─────────────────────────────────────────────
@@ -339,68 +386,103 @@ rumors   = [a for a in articles if a.is_rumor]
 col_l, col_m, col_r = st.columns([1.1, 1.3, 1.0], gap="medium")
 
 
-# ── 좌: 뉴스 리스트 ──────────────────────────
+# ── 좌: 뉴스 리스트 + 카테고리 필터 ──────────
 with col_l:
-    company_label = sel_company if sel_company != "전체" else f"{sel_sector} 전체"
     st.markdown(f"<div class='col-header'>📰 {company_label} 뉴스 · {len(filtered)}건</div>",
                 unsafe_allow_html=True)
 
+    # 카테고리 필터 버튼
+    all_cats = ["전체"] + list(MECH_CATEGORIES.keys())
+    cat_counts = {c: sum(1 for a in filtered_all if a.mech_category == c) for c in MECH_CATEGORIES}
+    cat_cols = st.columns(len(all_cats))
+    for col, cat in zip(cat_cols, all_cats):
+        info = MECH_CATEGORIES.get(cat, {})
+        emoji = info.get("emoji", "📰") if cat != "전체" else "📋"
+        cnt   = cat_counts.get(cat, len(filtered_all)) if cat == "전체" else cat_counts.get(cat, 0)
+        is_active = st.session_state.selected_cat == cat
+        if col.button(
+            f"{emoji}\n{cnt}",
+            key=f"cat_{sel_sector}_{sel_company}_{cat}",
+            use_container_width=True,
+            type="primary" if is_active else "secondary",
+            help=cat,
+        ):
+            st.session_state.selected_cat = cat
+            st.rerun()
+
     if not filtered:
-        st.info("해당 조건의 기사가 없습니다.")
+        st.info("해당 카테고리 기사가 없습니다.")
     else:
         cards = "".join(_news_card_html(a, analyses[a.link]) for a in filtered)
         st.markdown(f"<div class='scroll-box'>{cards}</div>", unsafe_allow_html=True)
 
 
-# ── 중: 감성 분석 ─────────────────────────────
+# ── 중: 기구개발 카테고리 분석 ───────────────
 with col_m:
-    st.markdown(f"<div class='col-header'>📊 감성 분석 · {company_label}</div>",
+    st.markdown(f"<div class='col-header'>🔩 기구개발 분석 · {company_label}</div>",
                 unsafe_allow_html=True)
 
-    if not filtered:
+    if not filtered_all:
         st.info("기사 없음")
     else:
-        pos = [a for a in filtered if analyses[a.link].sentiment == "positive"]
-        neg = [a for a in filtered if analyses[a.link].sentiment == "negative"]
-        neu = [a for a in filtered if analyses[a.link].sentiment == "neutral"]
+        total = len(filtered_all)
+        mech_arts = [a for a in filtered_all if a.mech_category != MECH_CATEGORY_GENERAL]
+        mech_ratio = round(len(mech_arts) / total * 100) if total else 0
 
-        # 비율 바 + 통계
+        # 기구개발 관련 비율 헤더
         st.markdown(
             f"<div style='background:#0F172A;border-radius:8px;padding:10px 14px;margin-bottom:12px;'>"
-            f"<div style='font-size:11px;color:#64748B;margin-bottom:2px;'>총 {len(filtered)}건</div>"
-            f"{_ratio_bar_html(len(pos), len(neg), len(filtered))}"
+            f"<div style='font-size:11px;color:#64748B;margin-bottom:4px;'>총 {total}건 중 기구개발 관련</div>"
+            f"<div style='font-size:22px;font-weight:800;color:#22D3EE;'>{mech_ratio}%"
+            f"  <span style='font-size:13px;color:#64748B;font-weight:400;'>({len(mech_arts)}건)</span></div>"
+            f"{_ratio_bar_html(len(mech_arts), 0, total)}"
             f"</div>",
             unsafe_allow_html=True,
         )
 
-        def _sentiment_section(arts, label, color, cls_name, expanded):
-            with st.expander(f"{label}  {len(arts)}건", expanded=expanded):
-                if not arts:
-                    st.caption("해당 기사 없음")
-                    return
-                for art in arts:
-                    domain = SECTORS.get(art.sector, {}).get("companies", {}).get(art.company, {}).get("domain", "")
-                    logo_html = _logo_img(domain, 14) + " " if domain else ""
-                    safe_t = html.escape(art.display_title)
-                    orig = ""
-                    if art.title_ko and art.title_ko != art.title:
-                        orig = f"<div style='font-size:10px;color:#475569;margin:-2px 0 3px;'>原 {html.escape(art.title)}</div>"
-                    rumor_tag = " <span class='badge b-rumor' style='font-size:9px;'>📡</span>" if art.is_rumor else ""
-                    st.markdown(
-                        f"<div class='news-card {cls_name}' style='margin-bottom:6px;'>"
-                        f"  <a href='{art.link}' target='_blank'>"
-                        f"    <div class='news-title'>{logo_html}{safe_t}{rumor_tag}</div>"
-                        f"  </a>"
-                        f"  {orig}"
-                        f"  <div class='news-meta'>{_source_badge(art.source)}"
-                        f"    <span>{art.published_ago}</span></div>"
-                        f"</div>",
-                        unsafe_allow_html=True,
-                    )
+        # 카테고리별 분포 바
+        cat_rows_html = ""
+        for cat_name, cat_info in MECH_CATEGORIES.items():
+            cnt = sum(1 for a in filtered_all if a.mech_category == cat_name)
+            if cnt == 0:
+                continue
+            pct = round(cnt / total * 100)
+            css = _CAT_CSS.get(cat_name, "cat-general")
+            color = cat_info["color"]
+            cat_rows_html += (
+                f"<div class='cat-row'>"
+                f"  <span class='badge b-cat {css}' style='min-width:90px;text-align:center;'>"
+                f"    {cat_info['emoji']} {cat_name}</span>"
+                f"  <div class='cat-bar-bg'><div class='cat-bar' style='width:{pct}%;background:{color};'></div></div>"
+                f"  <span class='cat-count'>{cnt}건</span>"
+                f"</div>"
+            )
+        st.markdown(f"<div style='margin-bottom:12px;'>{cat_rows_html}</div>", unsafe_allow_html=True)
 
-        _sentiment_section(pos, "▲ 긍정", "#059669", "positive", expanded=True)
-        _sentiment_section(neu, "● 중립", "#3B82F6", "neutral",  expanded=False)
-        _sentiment_section(neg, "▼ 부정", "#DC2626", "negative", expanded=True)
+        # 감성 분석 (접을 수 있게)
+        pos = [a for a in filtered_all if analyses[a.link].sentiment == "positive"]
+        neg = [a for a in filtered_all if analyses[a.link].sentiment == "negative"]
+
+        with st.expander(f"📊 감성 분석  ({len(pos)}↑ / {len(neg)}↓)", expanded=False):
+            st.markdown(
+                f"{_ratio_bar_html(len(pos), len(neg), total)}",
+                unsafe_allow_html=True,
+            )
+            for art in (pos + neg):
+                an = analyses[art.link]
+                safe_t = html.escape(art.display_title)
+                cls = an.sentiment
+                st.markdown(
+                    f"<div class='news-card {cls}' style='margin-bottom:5px;'>"
+                    f"  <a href='{art.link}' target='_blank'>"
+                    f"    <div class='news-title' style='font-size:12px;'>{safe_t}</div>"
+                    f"  </a>"
+                    f"  <div class='news-meta'>{_sentiment_badge(an.sentiment)}"
+                    f"    {_source_badge(art.source)}"
+                    f"    <span>{art.published_ago}</span></div>"
+                    f"</div>",
+                    unsafe_allow_html=True,
+                )
 
 
 # ── 우: 루머 피드 (전 섹터) ──────────────────

@@ -78,6 +78,82 @@ RUMOR_TOKENS: list[str] = [
     "루머", "유출", "예상", "전망", "출시 예정", "소문", "소식통",
 ]
 
+# ─────────────────────────────────────────────
+# 기구개발 카테고리
+# ─────────────────────────────────────────────
+MECH_CATEGORIES: dict[str, dict] = {
+    "디자인·폼팩터": {
+        "emoji": "🎨",
+        "color": "#7C3AED",
+        "tokens": [
+            "design", "form factor", "thin", "slim", "foldable", "folding", "thickness",
+            "bezel", "notch", "chassis", "body", "frame", "profile", "aesthetic",
+            "industrial design", "enclosure", "casing", "housing",
+            "디자인", "폼팩터", "폴더블", "두께", "베젤", "외형", "케이스", "하우징",
+        ],
+    },
+    "소재·재질": {
+        "emoji": "🔩",
+        "color": "#0891B2",
+        "tokens": [
+            "titanium", "aluminum", "aluminium", "ceramic", "glass", "gorilla glass",
+            "sapphire", "carbon fiber", "stainless steel", "polymer", "material",
+            "alloy", "composite", "plastic", "metal", "coating", "finish", "anodize",
+            "티타늄", "알루미늄", "세라믹", "소재", "재질", "탄소섬유", "강화유리", "합금",
+        ],
+    },
+    "사양·치수": {
+        "emoji": "📐",
+        "color": "#059669",
+        "tokens": [
+            "specs", "dimensions", "weight", "capacity", "resolution", "battery",
+            "mah", "watt", "megapixel", "aperture", "sensor", "display size",
+            "screen size", "inch", " mm", "gram", "specification", "tolerance",
+            "사양", "무게", "치수", "용량", "해상도", "배터리", "스펙", "공차",
+        ],
+    },
+    "내구성·신뢰성": {
+        "emoji": "🛡️",
+        "color": "#D97706",
+        "tokens": [
+            "drop test", "water resistant", "waterproof", "ip68", "ip67", "ip rating",
+            "mil-spec", "durability", "scratch", "shatter", "resistant", "protection",
+            "stress test", "bend test", "reliability",
+            "내구성", "방수", "방진", "강도", "내충격", "신뢰성", "굴곡 테스트",
+        ],
+    },
+    "제조·공정": {
+        "emoji": "🏭",
+        "color": "#DC2626",
+        "tokens": [
+            "manufacturing", "assembly", "production", "factory", "supply chain",
+            "cnc", "injection molding", "die casting", "machining", "fabrication",
+            "yield", "mass production", "tooling", "stamping", "forging",
+            "제조", "생산", "조립", "공정", "양산", "금형", "수율", "단조",
+        ],
+    },
+    "열관리·냉각": {
+        "emoji": "🌡️",
+        "color": "#EF4444",
+        "tokens": [
+            "thermal", "cooling", "heat", "temperature", "vapor chamber",
+            "heatsink", "heat pipe", "thermal management", "fan", "dissipation",
+            "발열", "냉각", "방열", "써멀", "온도", "베이퍼 챔버",
+        ],
+    },
+    "힌지·메커니즘": {
+        "emoji": "⚙️",
+        "color": "#8B5CF6",
+        "tokens": [
+            "hinge", "actuator", "joint", "mechanism", "pivot", "fold",
+            "rotation", "torque", "linkage", "kinematic", "gear", "motor",
+            "힌지", "액추에이터", "관절", "메커니즘", "구동", "토크", "기어",
+        ],
+    },
+}
+
+MECH_CATEGORY_GENERAL = "일반뉴스"
+
 _ATOM_NS = "http://www.w3.org/2005/Atom"
 
 
@@ -131,6 +207,7 @@ class Article:
     title_ko: str = ""
     summary_ko: str = ""
     content: str = field(default="", repr=False)
+    mech_category: str = MECH_CATEGORY_GENERAL
 
     @property
     def display_title(self) -> str:
@@ -249,6 +326,16 @@ def _detect_sector_and_company(text: str, source_sector: str) -> tuple[str, str]
     return best[0], best[1]
 
 
+def _detect_mech_category(text: str) -> str:
+    low = text.lower()
+    best_cat, best_score = MECH_CATEGORY_GENERAL, 0
+    for cat_name, cat_info in MECH_CATEGORIES.items():
+        score = sum(1 for t in cat_info["tokens"] if t in low)
+        if score > best_score:
+            best_cat, best_score = cat_name, score
+    return best_cat
+
+
 def _detect_rumor(text: str, rumor_site: bool) -> bool:
     if rumor_site:
         return True
@@ -312,6 +399,7 @@ def _make(title: str, link: str, published: str, summary: str, src: RssSource) -
         title=title, link=link, source=src.name, published=published,
         summary_raw=summary[:400], sector=sector, company=company,
         is_rumor=_detect_rumor(full, src.rumor_site),
+        mech_category=_detect_mech_category(full),
     )
 
 
@@ -496,12 +584,14 @@ def _demo_articles() -> list[Article]:
 
     articles = []
     for sector, company, is_rumor, source, title, title_ko, summary, summary_ko in rows:
+        full = f"{title} {summary}"
         articles.append(Article(
             title=title, title_ko=title_ko,
             link=f"https://example.com/{len(articles)}",
             source=source, published="Mon, 12 May 2025 10:00:00 +0000",
             summary_raw=summary, summary_ko=summary_ko,
             sector=sector, company=company, is_rumor=is_rumor,
+            mech_category=_detect_mech_category(full),
         ))
     return articles
 
