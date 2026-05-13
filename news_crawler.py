@@ -1,7 +1,8 @@
 """뉴스 크롤링 모듈.
 
-전문 사이트 + 대형 언론사 RSS 직접 수집 후 한국어 번역.
-RSS 2.0 / Atom 두 포맷 지원. API 키 불필요.
+모바일 / 로보틱스 / AI 3개 섹터, 24개 회사별 RSS 수집.
+회사 로고: Clearbit Logo API (logo.clearbit.com).
+번역: deep-translator Google 백엔드.
 """
 from __future__ import annotations
 
@@ -18,53 +19,104 @@ import requests
 from bs4 import BeautifulSoup
 
 # ─────────────────────────────────────────────
-# RSS 소스 정의
+# 섹터 / 회사 정의
 # ─────────────────────────────────────────────
-class RssSource(NamedTuple):
-    name: str
-    url: str
-    company: str       # "삼성" | "애플" | "기타"
-    rumor_site: bool
-    max_items: int = 15
-
-RSS_SOURCES: list[RssSource] = [
-    # ── 애플 전문 ─────────────────────────────
-    RssSource("MacRumors",      "https://feeds.macrumors.com/MacRumors-All",                 "애플", True,  20),
-    RssSource("9to5Mac",        "https://9to5mac.com/feed/",                                 "애플", False, 15),
-    # ── 삼성 전문 ─────────────────────────────
-    RssSource("SamMobile",      "https://www.sammobile.com/feed/",                           "삼성", True,  20),
-    RssSource("9to5Google",     "https://9to5google.com/feed/",                              "삼성", False, 15),
-    # ── 모바일 전반 ───────────────────────────
-    RssSource("GSMArena",       "https://www.gsmarena.com/rss-news-reviews.php3",            "기타", False, 20),
-    RssSource("The Verge",      "https://www.theverge.com/rss/index.xml",                    "기타", False, 15),
-    RssSource("TechCrunch",     "https://techcrunch.com/category/mobile/feed/",              "기타", False, 10),
-    # ── 대형 언론사 ───────────────────────────
-    RssSource("Bloomberg",      "https://feeds.bloomberg.com/technology/news.rss",           "기타", False, 10),
-    RssSource("Reuters",        "https://feeds.reuters.com/reuters/technologyNews",          "기타", False, 10),
-    RssSource("BBC Tech",       "https://feeds.bbci.co.uk/news/technology/rss.xml",         "기타", False, 10),
-    RssSource("CNBC Tech",      "https://www.cnbc.com/id/19854910/device/rss/rss.html",     "기타", False, 10),
-    RssSource("Financial Times","https://www.ft.com/technology?format=rss",                 "기타", False,  8),
-]
-
-# 회사 감지 토큰
-_COMPANY_TOKENS: dict[str, list[str]] = {
-    "삼성": ["samsung", "galaxy", "갤럭시", "삼성", "exynos", "one ui"],
-    "애플": ["apple", "iphone", "ipad", "macbook", "ios", "macos", "아이폰", "애플", "tim cook"],
+SECTORS: dict[str, dict] = {
+    "모바일": {
+        "emoji": "📱",
+        "companies": {
+            "삼성":   {"domain": "samsung.com",   "tokens": ["samsung", "galaxy", "갤럭시", "삼성", "exynos", "one ui"]},
+            "애플":   {"domain": "apple.com",     "tokens": ["apple", "iphone", "ipad", "ios", "macos", "아이폰", "애플", "vision pro", "tim cook"]},
+            "화웨이": {"domain": "huawei.com",    "tokens": ["huawei", "화웨이", "honor", "harmonyos", "kirin"]},
+            "OPPO":   {"domain": "oppo.com",      "tokens": ["oppo", "oneplus", "realme", "find x", "reno"]},
+            "샤오미": {"domain": "xiaomi.com",    "tokens": ["xiaomi", "샤오미", "redmi", "poco", "miui", "hyperos"]},
+            "Google": {"domain": "google.com",    "tokens": ["google pixel", "pixel phone", "pixel fold", "pixel watch", "tensor chip", "pixel tablet"]},
+            "Sony":   {"domain": "sony.com",      "tokens": ["sony xperia", "xperia"]},
+        },
+    },
+    "로보틱스": {
+        "emoji": "🤖",
+        "companies": {
+            "Boston Dynamics": {"domain": "bostondynamics.com", "tokens": ["boston dynamics", "atlas robot", "spot robot", "stretch robot"]},
+            "Figure AI":       {"domain": "figure.ai",          "tokens": ["figure ai", "figure robot", "figure 02", "helix ai", "figure humanoid"]},
+            "Agility Robotics":{"domain": "agilityrobotics.com","tokens": ["agility robotics", "digit robot", "agility robot"]},
+            "Unitree":         {"domain": "unitree.com",        "tokens": ["unitree", "unitree h1", "unitree g1", "go2 robot"]},
+            "1X Technologies": {"domain": "1x.tech",            "tokens": ["1x technologies", "1x tech", "neo robot", "eve robot"]},
+            "Apptronik":       {"domain": "apptronik.com",      "tokens": ["apptronik", "apollo robot"]},
+            "현대":            {"domain": "hyundai.com",        "tokens": ["hyundai robotics", "현대 로봇", "현대로보틱스", "hyundai robot"]},
+            "Tesla":           {"domain": "tesla.com",          "tokens": ["tesla optimus", "optimus robot", "tesla bot", "tesla humanoid"]},
+        },
+    },
+    "AI": {
+        "emoji": "🧠",
+        "companies": {
+            "OpenAI":    {"domain": "openai.com",    "tokens": ["openai", "chatgpt", "gpt-4", "gpt-5", "o1 model", "o3 model", "sora", "dall-e"]},
+            "Anthropic": {"domain": "anthropic.com", "tokens": ["anthropic", "claude ai", "claude 3", "claude 4", "claude sonnet", "claude opus"]},
+            "Google":    {"domain": "google.com",    "tokens": ["google gemini", "gemini ai", "deepmind", "google ai", "gemma model", "bard"]},
+            "Meta":      {"domain": "meta.com",      "tokens": ["meta ai", "llama", "meta llm", "meta artificial intelligence"]},
+            "Microsoft": {"domain": "microsoft.com", "tokens": ["microsoft copilot", "azure openai", "bing ai", "microsoft ai", "phi model", "microsoft 365 ai"]},
+            "xAI":       {"domain": "x.ai",          "tokens": ["xai", "grok", "x.ai", "grok-2", "grok-3", "elon musk ai"]},
+            "Nvidia":    {"domain": "nvidia.com",    "tokens": ["nvidia ai", "h100", "blackwell gpu", "cuda ai", "jensen huang", "nvidia nim", "gb200"]},
+            "Mistral AI":{"domain": "mistral.ai",   "tokens": ["mistral", "mixtral", "mistral ai", "le chat"]},
+            "Tesla":     {"domain": "tesla.com",     "tokens": ["tesla ai", "tesla fsd", "dojo supercomputer", "full self-driving", "tesla autopilot"]},
+        },
+    },
 }
 
-# 루머/유출 토큰
+# 회사 → 섹터 역색인 (빠른 조회용)
+_COMPANY_TO_SECTOR: dict[str, str] = {
+    company: sector
+    for sector, info in SECTORS.items()
+    for company in info["companies"]
+}
+
+# 루머 토큰
 RUMOR_TOKENS: list[str] = [
     "rumor", "leak", "leaked", "exclusive", "report", "expected",
     "alleged", "concept", "render", "tipster", "supply chain",
-    "coming soon", "spotted", "hints at", "could",
-    "루머", "유출", "예상", "전망", "출시 예정", "소문", "소식통", "확인되지",
+    "coming soon", "spotted", "hints at", "could launch",
+    "루머", "유출", "예상", "전망", "출시 예정", "소문", "소식통",
 ]
 
 _ATOM_NS = "http://www.w3.org/2005/Atom"
 
 
 # ─────────────────────────────────────────────
-# Article 데이터클래스
+# RSS 소스 정의
+# ─────────────────────────────────────────────
+class RssSource(NamedTuple):
+    name: str
+    url: str
+    sector: str       # "모바일" | "로보틱스" | "AI" | "기타"
+    rumor_site: bool
+    max_items: int = 15
+
+RSS_SOURCES: list[RssSource] = [
+    # ── 모바일 ──────────────────────────────────────────
+    RssSource("MacRumors",    "https://feeds.macrumors.com/MacRumors-All",            "모바일", True,  20),
+    RssSource("9to5Mac",      "https://9to5mac.com/feed/",                            "모바일", False, 15),
+    RssSource("SamMobile",    "https://www.sammobile.com/feed/",                      "모바일", True,  20),
+    RssSource("9to5Google",   "https://9to5google.com/feed/",                         "모바일", False, 15),
+    RssSource("GSMArena",     "https://www.gsmarena.com/rss-news-reviews.php3",       "모바일", False, 20),
+    # ── 로보틱스 ─────────────────────────────────────────
+    RssSource("IEEE Spectrum","https://spectrum.ieee.org/feeds/topic/robotics.rss",   "로보틱스", False, 15),
+    RssSource("Robot Report", "https://www.therobotreport.com/feed/",                 "로보틱스", False, 15),
+    RssSource("TC Robotics",  "https://techcrunch.com/category/robotics/feed/",       "로보틱스", False, 10),
+    # ── AI ───────────────────────────────────────────────
+    RssSource("VentureBeat",  "https://venturebeat.com/category/ai/feed/",            "AI", False, 15),
+    RssSource("The Decoder",  "https://the-decoder.com/feed/",                        "AI", False, 15),
+    RssSource("Ars Technica", "https://arstechnica.com/ai/feed/",                     "AI", False, 10),
+    # ── 대형 언론 (전 섹터 커버) ─────────────────────────
+    RssSource("The Verge",    "https://www.theverge.com/rss/index.xml",               "기타", False, 15),
+    RssSource("TechCrunch",   "https://techcrunch.com/category/mobile/feed/",         "기타", False, 10),
+    RssSource("Bloomberg",    "https://feeds.bloomberg.com/technology/news.rss",      "기타", False, 10),
+    RssSource("Reuters",      "https://feeds.reuters.com/reuters/technologyNews",     "기타", False, 10),
+    RssSource("BBC Tech",     "https://feeds.bbci.co.uk/news/technology/rss.xml",    "기타", False, 10),
+]
+
+
+# ─────────────────────────────────────────────
+# Article
 # ─────────────────────────────────────────────
 @dataclass
 class Article:
@@ -73,10 +125,11 @@ class Article:
     source: str
     published: str
     summary_raw: str = ""
+    sector: str = "기타"
     company: str = "기타"
     is_rumor: bool = False
-    title_ko: str = ""       # 한국어 번역 제목
-    summary_ko: str = ""     # 한국어 번역 요약
+    title_ko: str = ""
+    summary_ko: str = ""
     content: str = field(default="", repr=False)
 
     @property
@@ -114,6 +167,24 @@ class Article:
         except Exception:
             return self.published[:10] if self.published else ""
 
+    @property
+    def logo_url(self) -> str:
+        sector_info = SECTORS.get(self.sector, {})
+        company_info = sector_info.get("companies", {}).get(self.company, {})
+        domain = company_info.get("domain", "")
+        if domain:
+            return f"https://logo.clearbit.com/{domain}"
+        return ""
+
+    @property
+    def favicon_url(self) -> str:
+        sector_info = SECTORS.get(self.sector, {})
+        company_info = sector_info.get("companies", {}).get(self.company, {})
+        domain = company_info.get("domain", "")
+        if domain:
+            return f"https://www.google.com/s2/favicons?domain={domain}&sz=32"
+        return ""
+
 
 # ─────────────────────────────────────────────
 # 번역
@@ -121,50 +192,56 @@ class Article:
 def _is_english(text: str) -> bool:
     if not text:
         return False
-    ascii_count = sum(1 for c in text if ord(c) < 128)
-    return ascii_count / len(text) > 0.75
+    return sum(1 for c in text if ord(c) < 128) / len(text) > 0.75
 
 
 def translate_articles(articles: list[Article]) -> None:
-    """영어 기사 제목·요약을 한국어로 번역 (in-place). 실패해도 원문 유지."""
     try:
         from deep_translator import GoogleTranslator
     except ImportError:
         return
-
-    translator = GoogleTranslator(source="auto", target="ko")
-
+    tr = GoogleTranslator(source="auto", target="ko")
     for art in articles:
-        # 제목 번역
         if _is_english(art.title) and not art.title_ko:
             try:
-                art.title_ko = translator.translate(art.title[:4999]) or art.title
+                art.title_ko = tr.translate(art.title[:4999]) or ""
             except Exception:
                 pass
-
-        # 요약 번역 (200자 이내로 잘라서 전달)
         if _is_english(art.summary_raw) and not art.summary_ko and art.summary_raw:
             try:
-                art.summary_ko = translator.translate(art.summary_raw[:1000]) or art.summary_raw
+                art.summary_ko = tr.translate(art.summary_raw[:1000]) or ""
             except Exception:
                 pass
 
 
 # ─────────────────────────────────────────────
-# 헬퍼
+# 감지 로직
 # ─────────────────────────────────────────────
-def _clean(text: str) -> str:
-    text = html.unescape(text or "")
-    text = re.sub(r"<[^>]+>", " ", text)
-    return re.sub(r"\s+", " ", text).strip()
-
-
-def _detect_company(text: str) -> str:
+def _detect_company_in_sector(text: str, sector_name: str) -> str:
     low = text.lower()
-    for company, tokens in _COMPANY_TOKENS.items():
-        if any(t in low for t in tokens):
+    companies = SECTORS.get(sector_name, {}).get("companies", {})
+    for company, info in companies.items():
+        if any(t in low for t in info["tokens"]):
             return company
     return "기타"
+
+
+def _detect_sector_and_company(text: str, source_sector: str) -> tuple[str, str]:
+    low = text.lower()
+
+    # 지정 섹터가 있으면 해당 섹터 내에서만 회사 탐색
+    if source_sector in SECTORS:
+        company = _detect_company_in_sector(low, source_sector)
+        return source_sector, company
+
+    # 일반 소스 → 전 섹터에서 가장 많이 매칭되는 회사 선택
+    best = ("기타", "기타", 0)
+    for sector_name, sector_info in SECTORS.items():
+        for company, info in sector_info["companies"].items():
+            score = sum(1 for t in info["tokens"] if t in low)
+            if score > best[2]:
+                best = (sector_name, company, score)
+    return best[0], best[1]
 
 
 def _detect_rumor(text: str, rumor_site: bool) -> bool:
@@ -173,15 +250,25 @@ def _detect_rumor(text: str, rumor_site: bool) -> bool:
     return any(t in text.lower() for t in RUMOR_TOKENS)
 
 
-def _filter_general(text: str) -> bool:
+def _filter_relevant(text: str) -> bool:
+    """기타 소스에서 무관 기사 제거."""
     low = text.lower()
-    all_tokens = _COMPANY_TOKENS["삼성"] + _COMPANY_TOKENS["애플"]
-    return any(t in low for t in all_tokens)
+    for sector_info in SECTORS.values():
+        for info in sector_info["companies"].values():
+            if any(t in low for t in info["tokens"]):
+                return True
+    return False
 
 
 # ─────────────────────────────────────────────
-# XML 파싱 (RSS 2.0 + Atom)
+# XML 파싱
 # ─────────────────────────────────────────────
+def _clean(text: str) -> str:
+    text = html.unescape(text or "")
+    text = re.sub(r"<[^>]+>", " ", text)
+    return re.sub(r"\s+", " ", text).strip()
+
+
 def _parse_feed(xml_text: str, src: RssSource) -> list[Article]:
     articles: list[Article] = []
     try:
@@ -189,12 +276,12 @@ def _parse_feed(xml_text: str, src: RssSource) -> list[Article]:
     except ET.ParseError:
         return articles
 
-    # Atom 판별
+    # Atom
     if _ATOM_NS in root.tag or root.tag.lower() == "feed":
         for entry in list(root.iter(f"{{{_ATOM_NS}}}entry"))[: src.max_items]:
             title   = _clean(entry.findtext(f"{{{_ATOM_NS}}}title") or "")
-            link_el = entry.find(f"{{{_ATOM_NS}}}link")
-            link    = (link_el.get("href", "") if link_el is not None else "").strip()
+            lel     = entry.find(f"{{{_ATOM_NS}}}link")
+            link    = (lel.get("href", "") if lel is not None else "").strip()
             pub     = (entry.findtext(f"{{{_ATOM_NS}}}published") or
                        entry.findtext(f"{{{_ATOM_NS}}}updated") or "")
             summary = _clean(entry.findtext(f"{{{_ATOM_NS}}}summary") or
@@ -215,11 +302,11 @@ def _parse_feed(xml_text: str, src: RssSource) -> list[Article]:
 
 def _make(title: str, link: str, published: str, summary: str, src: RssSource) -> Article:
     full = f"{title} {summary}"
-    company  = src.company if src.company != "기타" else _detect_company(full)
-    is_rumor = _detect_rumor(full, src.rumor_site)
+    sector, company = _detect_sector_and_company(full, src.sector)
     return Article(
         title=title, link=link, source=src.name, published=published,
-        summary_raw=summary[:400], company=company, is_rumor=is_rumor,
+        summary_raw=summary[:400], sector=sector, company=company,
+        is_rumor=_detect_rumor(full, src.rumor_site),
     )
 
 
@@ -251,17 +338,15 @@ def fetch_articles() -> list[Article]:
         for art in _parse_feed(r.text, src):
             if not art.title or not art.link:
                 continue
-            if src.company == "기타" and not _filter_general(f"{art.title} {art.summary_raw}"):
+            if src.sector == "기타" and not _filter_relevant(f"{art.title} {art.summary_raw}"):
                 continue
             if art.link not in seen:
                 seen.add(art.link)
                 articles.append(art)
 
     articles.sort(key=lambda a: a.published_dt, reverse=True)
-
     if articles:
         translate_articles(articles)
-
     return articles
 
 
@@ -280,83 +365,123 @@ def fetch_article_body(url: str, timeout: int = 8) -> str:
 
 
 # ─────────────────────────────────────────────
-# 데모 데이터 (RSS 접근 불가 환경용)
+# 데모 데이터
 # ─────────────────────────────────────────────
 def _demo_articles() -> list[Article]:
-    raw = [
-        # 애플 루머
-        ("MacRumors",   "애플", True,
-         "Apple's iPhone 17 Pro rumored to feature periscope telephoto across all models",
-         "아이폰 17 Pro, 전 모델에 페리스코프 망원 탑재 루머",
-         "Supply chain sources suggest Apple plans to bring periscope zoom to the entire iPhone 17 Pro lineup, a first for the series.",
-         "공급망 소식통에 따르면 애플은 아이폰 17 Pro 전 라인업에 페리스코프 줌을 탑재할 계획이며, 시리즈 최초 사례가 될 전망입니다."),
-        ("9to5Mac",     "애플", False,
-         "Apple faces supply chain delays for foldable iPhone hinge components",
-         "애플 폴더블 아이폰 힌지 부품 공급망 지연",
-         "Reports from Asia indicate Apple's foldable hinge supplier is struggling with yield rates ahead of 2026 launch.",
-         "아시아 보도에 따르면 애플의 폴더블 힌지 공급업체가 2026년 출시를 앞두고 수율 문제를 겪고 있습니다."),
-        ("MacRumors",   "애플", True,
-         "iOS 19 rumored to bring major AI-first redesign",
-         "iOS 19, AI 중심의 대규모 디자인 개편 루머",
-         "Multiple sources report Apple is working on a ground-up redesign of iOS for the iPhone 17 era.",
-         "복수의 소식통에 따르면 애플은 아이폰 17 시대를 위해 iOS를 전면 재설계하고 있습니다."),
-        ("9to5Mac",     "애플", False,
-         "Apple halts Vision Pro 2 development amid weak first-gen sales",
-         "애플, 1세대 판매 부진으로 비전 프로 2 개발 중단",
-         "Apple has reportedly put Vision Pro 2 on hold as first-generation sales fall short of internal targets.",
-         "애플이 1세대 판매량이 내부 목표에 미치지 못하자 비전 프로 2 개발을 중단한 것으로 알려졌습니다."),
-        ("Bloomberg",   "애플", False,
-         "Apple's AI push faces regulatory scrutiny in Europe",
-         "애플 AI 전략, 유럽 규제 당국 심사 직면",
-         "European regulators are examining whether Apple Intelligence features comply with the Digital Markets Act.",
-         "유럽 규제 당국이 애플 인텔리전스 기능이 디지털시장법을 준수하는지 조사 중입니다."),
-        # 삼성 루머
-        ("SamMobile",   "삼성", True,
-         "Samsung Galaxy S26 Ultra leak reveals 6000mAh battery and new cooling system",
-         "갤럭시 S26 울트라 유출: 6000mAh 배터리·신형 쿨링 시스템",
-         "Leaked specs show the Galaxy S26 Ultra will ship with a 6000mAh battery and vapor chamber cooling.",
-         "유출된 스펙에 따르면 갤럭시 S26 울트라는 6000mAh 배터리와 베이퍼 챔버 쿨링을 탑재합니다."),
-        ("9to5Google",  "삼성", True,
-         "Galaxy Z Flip 7 concept renders show slimmer hinge and larger cover display",
-         "갤럭시 Z 플립 7 컨셉 렌더링: 얇아진 힌지, 커진 커버 디스플레이",
-         "Alleged renders show a redesigned, slimmer hinge and a 4-inch cover display on the Galaxy Z Flip 7.",
-         "유출된 렌더링에 따르면 갤럭시 Z 플립 7은 더 얇은 힌지와 4인치 커버 디스플레이를 갖출 예정입니다."),
-        ("SamMobile",   "삼성", False,
-         "Samsung confirms Galaxy Z Fold 7 hinge durability improved by 30%",
-         "삼성, 갤럭시 Z 폴드 7 힌지 내구성 30% 향상 공식 확인",
-         "Samsung officially confirmed the Flex Hinge in Z Fold 7 has 30% improved durability over the previous generation.",
-         "삼성은 Z 폴드 7의 플렉스 힌지가 전 세대 대비 30% 향상된 내구성을 갖췄다고 공식 확인했습니다."),
-        ("Reuters",     "삼성", False,
-         "Samsung Electronics reports record Q1 profit on AI chip demand",
-         "삼성전자, AI 칩 수요에 힘입어 1분기 사상 최대 영업이익",
-         "Samsung Electronics posted record first-quarter operating profit driven by surging demand for HBM memory chips.",
-         "삼성전자가 HBM 메모리 칩 수요 급증에 힘입어 사상 최대 1분기 영업이익을 기록했습니다."),
-        ("9to5Google",  "삼성", False,
-         "Samsung accused of overstating Galaxy AI capabilities in advertisements",
-         "삼성, 갤럭시 AI 기능 광고 과장 혐의",
-         "Consumer advocacy groups filed complaints alleging Samsung exaggerated Galaxy AI features in marketing materials.",
-         "소비자 단체들이 삼성이 마케팅 자료에서 갤럭시 AI 기능을 과장했다며 이의를 제기했습니다."),
-        # 기타
-        ("GSMArena",    "기타", False,
-         "Qualcomm Snapdragon 8 Elite 2 specs leaked ahead of Q4 launch",
-         "퀄컴 스냅드래곤 8 엘리트 2 스펙 유출, 4분기 출시 예정",
-         "Leaked benchmarks show the Snapdragon 8 Elite 2 delivers 40% CPU improvement over its predecessor.",
-         "유출된 벤치마크에 따르면 스냅드래곤 8 엘리트 2는 전 세대 대비 CPU 성능이 40% 향상됐습니다."),
-        ("BBC Tech",    "기타", False,
-         "Smartphone market grows 8% in Q1 2025 driven by AI features",
-         "AI 기능 탑재로 2025년 1분기 스마트폰 시장 8% 성장",
-         "Global smartphone shipments rose 8% year-on-year in Q1 2025 as consumers upgrade for AI capabilities.",
-         "AI 기능 업그레이드 수요에 힘입어 2025년 1분기 글로벌 스마트폰 출하량이 전년 동기 대비 8% 증가했습니다."),
+    rows = [
+        # sector, company, rumor, source, title_en, title_ko, summary_en, summary_ko
+        ("모바일","애플",   True, "MacRumors",
+         "iPhone 17 Pro rumored to feature periscope telephoto across all models",
+         "아이폰 17 Pro, 전 모델 페리스코프 망원 탑재 루머",
+         "Supply chain sources suggest Apple plans periscope zoom for all iPhone 17 Pro models.",
+         "공급망 소식통에 따르면 애플은 아이폰 17 Pro 전 라인업에 페리스코프 줌을 탑재할 계획입니다."),
+        ("모바일","삼성",   True, "SamMobile",
+         "Galaxy S26 Ultra leak reveals 6000mAh battery and vapor chamber cooling",
+         "갤럭시 S26 울트라 유출: 6000mAh 배터리·베이퍼 챔버",
+         "Leaked specs show the Galaxy S26 Ultra ships with a 6000mAh battery.",
+         "유출된 스펙에 따르면 갤럭시 S26 울트라는 6000mAh 배터리를 탑재합니다."),
+        ("모바일","화웨이", False,"The Verge",
+         "Huawei Mate 70 Pro outperforms expectations despite chip restrictions",
+         "화웨이 Mate 70 Pro, 칩 제재에도 기대 이상 성능 발휘",
+         "Huawei's latest flagship shows surprising performance despite US chip export restrictions.",
+         "화웨이 최신 플래그십이 미국 반도체 수출 규제에도 놀라운 성능을 보여줬습니다."),
+        ("모바일","샤오미", True, "GSMArena",
+         "Xiaomi 15 Ultra concept renders reveal 200MP periscope camera",
+         "샤오미 15 울트라 컨셉 렌더링: 200MP 페리스코프 카메라",
+         "Alleged renders show Xiaomi 15 Ultra with a 200MP periscope telephoto lens.",
+         "유출된 렌더링에 따르면 샤오미 15 울트라는 200MP 페리스코프 망원 렌즈를 탑재합니다."),
+        ("모바일","OPPO",  False,"GSMArena",
+         "OPPO Find X8 Pro launches globally with Hasselblad camera system",
+         "OPPO 파인드 X8 Pro, 하셀블라드 카메라 탑재 글로벌 출시",
+         "OPPO officially launched the Find X8 Pro globally with co-engineered Hasselblad cameras.",
+         "OPPO가 하셀블라드와 공동 개발한 카메라를 탑재한 파인드 X8 Pro를 글로벌 출시했습니다."),
+        ("모바일","Google",True, "9to5Google",
+         "Google Pixel 10 Pro rumored to feature in-house Tensor G5 with 3nm process",
+         "구글 픽셀 10 Pro, 자체 텐서 G5(3nm) 탑재 루머",
+         "Tipsters claim the Pixel 10 Pro will debut Google's Tensor G5 chip built on 3nm.",
+         "제보자들에 따르면 픽셀 10 Pro는 3nm 공정 기반 텐서 G5 칩을 탑재할 예정입니다."),
+        ("모바일","Sony",  False,"GSMArena",
+         "Sony Xperia 1 VII gaming performance review highlights thermal management",
+         "소니 엑스페리아 1 VII 게이밍 성능: 발열 관리가 핵심",
+         "Sony's Xperia 1 VII impresses with dedicated gaming mode and advanced cooling.",
+         "소니 엑스페리아 1 VII는 전용 게이밍 모드와 고급 쿨링 시스템으로 주목받고 있습니다."),
+        # 로보틱스
+        ("로보틱스","Boston Dynamics",True, "IEEE Spectrum",
+         "Boston Dynamics Atlas humanoid robot begins automotive factory trials",
+         "보스턴다이나믹스 아틀라스, 자동차 공장 시범 운영 시작",
+         "Atlas is now being tested in real automotive manufacturing environments alongside human workers.",
+         "아틀라스 로봇이 자동차 제조 현장에서 인간 작업자와 함께 실제 시범 운영을 시작했습니다."),
+        ("로보틱스","Figure AI",  True, "Robot Report",
+         "Figure AI's Helix model enables robots to learn tasks in hours not weeks",
+         "Figure AI 헬릭스 모델, 로봇 학습 시간 수주→수시간으로 단축",
+         "Figure's new Helix AI model allows robots to master new manipulation tasks within hours.",
+         "Figure의 새로운 헬릭스 AI 모델로 로봇이 새로운 작업을 수 시간 내에 습득할 수 있게 됐습니다."),
+        ("로보틱스","Tesla",      True, "TC Robotics",
+         "Tesla Optimus Gen 3 walks 40% faster, claims internal memo leak",
+         "테슬라 옵티머스 3세대, 40% 빠른 보행속도 달성 — 내부 문서 유출",
+         "A leaked internal Tesla memo claims Optimus Gen 3 achieves human-level walking speed.",
+         "유출된 테슬라 내부 문서에 따르면 옵티머스 3세대가 인간 수준의 보행 속도를 달성했습니다."),
+        ("로보틱스","Unitree",    True, "IEEE Spectrum",
+         "Unitree G1 humanoid priced at $16k disrupts industrial robotics market",
+         "유니트리 G1, 1600만원 인간형 로봇으로 산업용 로봇 시장 파격 진입",
+         "Unitree's G1 humanoid at $16,000 is forcing competitors to rethink pricing strategies.",
+         "1만6000달러(약 2100만원)짜리 유니트리 G1이 경쟁사들의 가격 전략을 재고하게 만들고 있습니다."),
+        ("로보틱스","Agility Robotics",False,"Robot Report",
+         "Agility Robotics Digit completes 1 million warehouse picks at Amazon",
+         "어질리티 로보틱스 디짓, 아마존 물류센터 100만 번 피킹 달성",
+         "Digit has surpassed 1 million item picks in Amazon warehouses, a major milestone.",
+         "디짓 로봇이 아마존 물류센터에서 100만 번 물품 피킹이라는 이정표를 달성했습니다."),
+        # AI
+        ("AI","OpenAI",   True, "The Decoder",
+         "OpenAI GPT-5 rumored to debut multimodal reasoning with 10x capacity",
+         "OpenAI GPT-5, 멀티모달 추론 및 10배 용량 루머",
+         "Sources claim GPT-5 will feature native multimodal reasoning far beyond GPT-4.",
+         "소식통에 따르면 GPT-5는 GPT-4를 크게 뛰어넘는 네이티브 멀티모달 추론 기능을 갖출 예정입니다."),
+        ("AI","Anthropic", False,"VentureBeat",
+         "Anthropic Claude 4 Opus sets new benchmark on coding and reasoning tasks",
+         "Anthropic 클로드 4 오퍼스, 코딩·추론 벤치마크 신기록",
+         "Claude 4 Opus outperforms competitors on SWE-bench coding and MMLU reasoning tasks.",
+         "클로드 4 오퍼스가 SWE-벤치 코딩과 MMLU 추론 과제에서 경쟁사를 앞섰습니다."),
+        ("AI","Google",   True, "Ars Technica",
+         "Google Gemini Ultra 2 reportedly achieves human-level performance on GPQA",
+         "구글 제미나이 울트라 2, GPQA 인간 수준 성능 달성 루머",
+         "Leaked evals suggest Gemini Ultra 2 achieves human expert-level on graduate-level science.",
+         "유출된 평가 결과에 따르면 제미나이 울트라 2가 대학원 수준 과학 문제에서 인간 전문가 수준에 도달했습니다."),
+        ("AI","Nvidia",   False,"VentureBeat",
+         "Nvidia Blackwell B200 GPU demand exceeds supply by 10x heading into 2026",
+         "엔비디아 블랙웰 B200 GPU, 2026년 앞두고 수요가 공급의 10배",
+         "Nvidia's Blackwell B200 supply chain is severely constrained as AI demand surges.",
+         "AI 수요 급증으로 엔비디아 블랙웰 B200 공급망이 심각하게 부족한 상황입니다."),
+        ("AI","xAI",      True, "The Decoder",
+         "xAI Grok 3 rumored to feature real-time web browsing and image generation",
+         "xAI 그록 3, 실시간 웹 탐색·이미지 생성 기능 루머",
+         "Sources say Grok 3 will integrate real-time web access and native image generation.",
+         "소식통에 따르면 그록 3는 실시간 웹 검색과 네이티브 이미지 생성 기능을 통합할 예정입니다."),
+        ("AI","Microsoft", False,"Ars Technica",
+         "Microsoft Copilot integration reaches 1 billion monthly active users",
+         "마이크로소프트 코파일럿, 월간 활성 사용자 10억 명 돌파",
+         "Microsoft announced Copilot has exceeded 1 billion monthly active users across its products.",
+         "마이크로소프트가 코파일럿의 월간 활성 사용자가 10억 명을 넘어섰다고 발표했습니다."),
+        ("AI","Meta",     True, "VentureBeat",
+         "Meta Llama 4 Scout achieves GPT-4o parity at fraction of cost, leak suggests",
+         "메타 라마 4 스카우트, GPT-4o 수준 성능을 훨씬 낮은 비용에 달성 — 유출",
+         "Leaked benchmark results show Meta's Llama 4 Scout matching GPT-4o on key tasks.",
+         "유출된 벤치마크 결과에 따르면 메타의 라마 4 스카우트가 주요 과제에서 GPT-4o와 동등한 성능을 보입니다."),
+        ("AI","Mistral AI",False,"The Decoder",
+         "Mistral AI raises $1B Series C at $6B valuation amid enterprise demand surge",
+         "미스트랄 AI, 기업 수요 급증 속 6조원 기업가치로 1조원 시리즈 C 유치",
+         "Mistral AI secured a $1 billion Series C round valuing the company at $6 billion.",
+         "미스트랄 AI가 기업가치 6조원으로 1조원 규모의 시리즈 C 투자를 유치했습니다."),
     ]
+
     articles = []
-    for src_name, company, is_rumor, title, title_ko, summary, summary_ko in raw:
+    for sector, company, is_rumor, source, title, title_ko, summary, summary_ko in rows:
         articles.append(Article(
             title=title, title_ko=title_ko,
             link=f"https://example.com/{len(articles)}",
-            source=src_name,
-            published="Mon, 12 May 2025 10:00:00 +0000",
+            source=source, published="Mon, 12 May 2025 10:00:00 +0000",
             summary_raw=summary, summary_ko=summary_ko,
-            company=company, is_rumor=is_rumor,
+            sector=sector, company=company, is_rumor=is_rumor,
         ))
     return articles
 
@@ -376,10 +501,8 @@ def get_cached_articles(force_refresh: bool = False) -> list[Article]:
     if not force_refresh and cached and (now - cached[0]) < _TTL:
         return cached[1]
     arts = fetch_articles()
-    if arts:
-        is_demo_mode = False
-    else:
-        is_demo_mode = True
+    is_demo_mode = not arts
+    if is_demo_mode:
         arts = _demo_articles()
     _CACHE["v"] = (now, arts)
     return arts
