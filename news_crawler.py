@@ -171,7 +171,7 @@ MECH_CATEGORIES: dict[str, dict] = {
             "발열", "냉각", "방열", "써멀", "온도", "베이퍼 챔버",
         ],
     },
-    "힌지·메커니즘": {
+    "구동·관절": {
         "color": "#8B5CF6",
         "tokens": [
             "hinge", "actuator", "joint", "mechanism", "pivot", "fold",

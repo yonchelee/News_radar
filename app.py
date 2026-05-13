@@ -412,7 +412,7 @@ _CAT_CSS = {
     "내구성·신뢰성":  "cat-durability",
     "제조·공정":      "cat-mfg",
     "열관리·냉각":    "cat-thermal",
-    "힌지·메커니즘":  "cat-mech",
+    "구동·관절":      "cat-mech",
     MECH_CATEGORY_GENERAL: "cat-general",
 }
 
@@ -663,17 +663,15 @@ with col_l:
     # 기술·개발 선택시 세부 카테고리 필터 — 2행으로 분리, 축약 레이블
     if sel_top_cat == "기술·개발":
         mech_opts = ["전체"] + list(MECH_CATEGORIES.keys())
-        _per_mc = 5
+        _per_mc = 4
         for _ri in range(math.ceil(len(mech_opts) / _per_mc)):
             _chunk = mech_opts[_ri * _per_mc : (_ri + 1) * _per_mc]
             mc_cols = st.columns(len(_chunk))
             for col_mc, mc in zip(mc_cols, _chunk):
                 cnt = sum(1 for a in filtered_top if a.mech_category == mc) if mc != "전체" else len(filtered_top)
-                # 2글자로 줄임: "내구성" → "내구", "디자인" → "디자인" 유지
-                raw = mc.split("·")[0] if "·" in mc else mc
-                lbl = raw[:2] if len(raw) > 2 else raw
+                lbl = mc.split("·")[0] if "·" in mc else mc
                 if col_mc.button(
-                    f"{lbl} {cnt}",
+                    f"{lbl}",
                     key=f"mc_{sel_sector}_{sel_company}_{mc}",
                     use_container_width=True,
                     type="primary" if sel_mech_cat == mc else "secondary",
