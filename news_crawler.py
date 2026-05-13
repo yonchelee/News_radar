@@ -79,7 +79,49 @@ RUMOR_TOKENS: list[str] = [
 ]
 
 # ─────────────────────────────────────────────
-# 기구개발 카테고리
+# 상위 카테고리 (3분류)
+# ─────────────────────────────────────────────
+ARTICLE_CATEGORIES: dict[str, dict] = {
+    "기술·개발": {
+        "emoji": "⚙️",
+        "color": "#0891B2",
+        "description": "설계·소재·사양·제조·내구성·열관리·메커니즘",
+        # 기술 감지는 MECH_CATEGORIES 토큰 기반 (별도 처리)
+    },
+    "마케팅·출시": {
+        "emoji": "📣",
+        "color": "#7C3AED",
+        "description": "신제품 발표·출시·이벤트·광고·가격",
+        "tokens": [
+            "launch", "launches", "launched", "release", "releases", "released",
+            "announce", "announces", "announced", "announcement",
+            "reveal", "reveals", "revealed", "unveil", "unveils", "unveiled",
+            "event", "keynote", "hands-on", "first look", "official",
+            "available", "pre-order", "on sale", "price", "pricing",
+            "campaign", "advertisement", "promo", "limited edition",
+            "출시", "발표", "공개", "이벤트", "키노트", "출시가", "가격", "예약", "한정판",
+        ],
+    },
+    "사업·전략": {
+        "emoji": "📊",
+        "color": "#059669",
+        "description": "투자·파트너십·시장점유율·실적·M&A·전략",
+        "tokens": [
+            "investment", "funding", "valuation", "ipo", "venture",
+            "partnership", "collaboration", "deal", "agreement", "contract",
+            "acquisition", "acquires", "merger", "takeover",
+            "revenue", "profit", "earnings", "quarter", "fiscal",
+            "market share", "shipments", "forecast", "outlook",
+            "layoff", "restructure", "strategy", "expansion", "ceo",
+            "투자", "파트너십", "계약", "인수", "합병", "매출", "실적",
+            "시장점유율", "출하량", "전략", "구조조정", "대표이사",
+        ],
+    },
+}
+TOP_CATEGORY_GENERAL = "일반뉴스"
+
+# ─────────────────────────────────────────────
+# 기구개발 세부 카테고리 (기술·개발 내부)
 # ─────────────────────────────────────────────
 MECH_CATEGORIES: dict[str, dict] = {
     "디자인·폼팩터": {
@@ -151,8 +193,7 @@ MECH_CATEGORIES: dict[str, dict] = {
         ],
     },
 }
-
-MECH_CATEGORY_GENERAL = "일반뉴스"
+MECH_CATEGORY_GENERAL = "기타"
 
 _ATOM_NS = "http://www.w3.org/2005/Atom"
 
@@ -207,7 +248,8 @@ class Article:
     title_ko: str = ""
     summary_ko: str = ""
     content: str = field(default="", repr=False)
-    mech_category: str = MECH_CATEGORY_GENERAL
+    mech_category: str = MECH_CATEGORY_GENERAL   # 기술·개발 세부 분류
+    top_category:  str = TOP_CATEGORY_GENERAL    # 상위 3분류
 
     @property
     def display_title(self) -> str:
@@ -327,6 +369,7 @@ def _detect_sector_and_company(text: str, source_sector: str) -> tuple[str, str]
 
 
 def _detect_mech_category(text: str) -> str:
+    """기술 세부 카테고리 감지 (7종)."""
     low = text.lower()
     best_cat, best_score = MECH_CATEGORY_GENERAL, 0
     for cat_name, cat_info in MECH_CATEGORIES.items():
@@ -334,6 +377,21 @@ def _detect_mech_category(text: str) -> str:
         if score > best_score:
             best_cat, best_score = cat_name, score
     return best_cat
+
+
+def _detect_top_category(text: str, mech_cat: str) -> str:
+    """상위 3분류 감지.
+
+    기술 세부 카테고리가 이미 감지됐으면 → 기술·개발.
+    아니면 마케팅·출시 / 사업·전략 키워드 순서로 확인.
+    """
+    if mech_cat != MECH_CATEGORY_GENERAL:
+        return "기술·개발"
+    low = text.lower()
+    for cat_name in ("마케팅·출시", "사업·전략"):
+        if any(t in low for t in ARTICLE_CATEGORIES[cat_name]["tokens"]):
+            return cat_name
+    return TOP_CATEGORY_GENERAL
 
 
 def _detect_rumor(text: str, rumor_site: bool) -> bool:
@@ -395,11 +453,13 @@ def _parse_feed(xml_text: str, src: RssSource) -> list[Article]:
 def _make(title: str, link: str, published: str, summary: str, src: RssSource) -> Article:
     full = f"{title} {summary}"
     sector, company = _detect_sector_and_company(full, src.sector)
+    mech_cat = _detect_mech_category(full)
     return Article(
         title=title, link=link, source=src.name, published=published,
         summary_raw=summary[:400], sector=sector, company=company,
         is_rumor=_detect_rumor(full, src.rumor_site),
-        mech_category=_detect_mech_category(full),
+        mech_category=mech_cat,
+        top_category=_detect_top_category(full, mech_cat),
     )
 
 
@@ -585,13 +645,15 @@ def _demo_articles() -> list[Article]:
     articles = []
     for sector, company, is_rumor, source, title, title_ko, summary, summary_ko in rows:
         full = f"{title} {summary}"
+        mech_cat = _detect_mech_category(full)
         articles.append(Article(
             title=title, title_ko=title_ko,
             link=f"https://example.com/{len(articles)}",
             source=source, published="Mon, 12 May 2025 10:00:00 +0000",
             summary_raw=summary, summary_ko=summary_ko,
             sector=sector, company=company, is_rumor=is_rumor,
-            mech_category=_detect_mech_category(full),
+            mech_category=mech_cat,
+            top_category=_detect_top_category(full, mech_cat),
         ))
     return articles
 
