@@ -195,23 +195,28 @@ def _is_english(text: str) -> bool:
     return sum(1 for c in text if ord(c) < 128) / len(text) > 0.75
 
 
-def translate_articles(articles: list[Article]) -> None:
+def _translate_one(art: Article) -> None:
+    """단일 기사 번역 (스레드 풀에서 호출)."""
     try:
         from deep_translator import GoogleTranslator
     except ImportError:
         return
     tr = GoogleTranslator(source="auto", target="ko")
-    for art in articles:
-        if _is_english(art.title) and not art.title_ko:
-            try:
-                art.title_ko = tr.translate(art.title[:4999]) or ""
-            except Exception:
-                pass
-        if _is_english(art.summary_raw) and not art.summary_ko and art.summary_raw:
-            try:
-                art.summary_ko = tr.translate(art.summary_raw[:1000]) or ""
-            except Exception:
-                pass
+    if _is_english(art.title) and not art.title_ko:
+        try:
+            art.title_ko = tr.translate(art.title[:4999]) or ""
+        except Exception:
+            pass
+    if _is_english(art.summary_raw) and not art.summary_ko and art.summary_raw:
+        try:
+            art.summary_ko = tr.translate(art.summary_raw[:1000]) or ""
+        except Exception:
+            pass
+
+
+def translate_articles(articles: list[Article]) -> None:
+    with concurrent.futures.ThreadPoolExecutor(max_workers=_MAX_WORKERS) as pool:
+        list(pool.map(_translate_one, articles))
 
 
 # ─────────────────────────────────────────────
@@ -313,6 +318,8 @@ def _make(title: str, link: str, published: str, summary: str, src: RssSource) -
 # ─────────────────────────────────────────────
 # 수집
 # ─────────────────────────────────────────────
+import concurrent.futures
+
 _HEADERS = {
     "User-Agent": (
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
@@ -321,28 +328,41 @@ _HEADERS = {
     "Accept": "application/rss+xml, application/xml, text/xml, */*",
 }
 
+_FETCH_TIMEOUT = 8   # 소스당 타임아웃 (초)
+_MAX_WORKERS   = 8   # 병렬 스레드 수
+
+
+def _fetch_one(src: RssSource) -> list[Article]:
+    """단일 RSS 소스 수집 (스레드 풀에서 호출)."""
+    try:
+        r = requests.get(src.url, headers=_HEADERS, timeout=_FETCH_TIMEOUT)
+        r.raise_for_status()
+        r.encoding = r.apparent_encoding or "utf-8"
+    except Exception as exc:
+        print(f"[WARN] {src.name}: {exc}")
+        return []
+
+    results = []
+    for art in _parse_feed(r.text, src):
+        if not art.title or not art.link:
+            continue
+        if src.sector == "기타" and not _filter_relevant(f"{art.title} {art.summary_raw}"):
+            continue
+        results.append(art)
+    return results
+
 
 def fetch_articles() -> list[Article]:
     seen: set[str] = set()
     articles: list[Article] = []
 
-    for src in RSS_SOURCES:
-        try:
-            r = requests.get(src.url, headers=_HEADERS, timeout=12)
-            r.raise_for_status()
-            r.encoding = r.apparent_encoding or "utf-8"
-        except Exception as exc:
-            print(f"[WARN] {src.name}: {exc}")
-            continue
-
-        for art in _parse_feed(r.text, src):
-            if not art.title or not art.link:
-                continue
-            if src.sector == "기타" and not _filter_relevant(f"{art.title} {art.summary_raw}"):
-                continue
-            if art.link not in seen:
-                seen.add(art.link)
-                articles.append(art)
+    with concurrent.futures.ThreadPoolExecutor(max_workers=_MAX_WORKERS) as pool:
+        futures = {pool.submit(_fetch_one, src): src for src in RSS_SOURCES}
+        for future in concurrent.futures.as_completed(futures):
+            for art in future.result():
+                if art.link not in seen:
+                    seen.add(art.link)
+                    articles.append(art)
 
     articles.sort(key=lambda a: a.published_dt, reverse=True)
     if articles:
