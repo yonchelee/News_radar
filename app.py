@@ -118,12 +118,42 @@ _init()
 # ─────────────────────────────────────────────
 # 헬퍼
 # ─────────────────────────────────────────────
+# Simple Icons slug 매핑 (https://simpleicons.org)
+_SIMPLE_ICONS: dict[str, str] = {
+    "samsung.com":          "samsung",
+    "apple.com":            "apple",
+    "huawei.com":           "huawei",
+    "oppo.com":             "oppo",
+    "xiaomi.com":           "xiaomi",
+    "google.com":           "google",
+    "sony.com":             "sony",
+    "hyundai.com":          "hyundai",
+    "tesla.com":            "tesla",
+    "openai.com":           "openai",
+    "anthropic.com":        "anthropic",
+    "meta.com":             "meta",
+    "microsoft.com":        "microsoft",
+    "x.ai":                 "xai",
+    "nvidia.com":           "nvidia",
+    "mistral.ai":           "mistral",
+    "bostondynamics.com":   "bostondynamics",
+}
+
+
 def _logo_img(domain: str, size: int = 20) -> str:
-    cb  = f"https://logo.clearbit.com/{domain}"
-    fb  = f"https://www.google.com/s2/favicons?domain={domain}&sz=32"
-    return (f'<img src="{cb}" width="{size}" height="{size}" '
-            f'style="border-radius:3px;object-fit:contain;vertical-align:middle;" '
-            f'onerror="this.onerror=null;this.src=\'{fb}\'">')
+    slug = _SIMPLE_ICONS.get(domain)
+    fb   = f"https://www.google.com/s2/favicons?domain={domain}&sz=64"
+    if slug:
+        si = f"https://cdn.simpleicons.org/{slug}/white"
+        return (
+            f'<img src="{si}" width="{size}" height="{size}" '
+            f'style="border-radius:3px;object-fit:contain;vertical-align:middle;filter:drop-shadow(0 0 1px #fff4);" '
+            f'onerror="this.onerror=null;this.src=\'{fb}\'">'
+        )
+    return (
+        f'<img src="{fb}" width="{size}" height="{size}" '
+        f'style="border-radius:3px;object-fit:contain;vertical-align:middle;">'
+    )
 
 
 def _sentiment_badge(s: str) -> str:
