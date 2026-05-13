@@ -566,10 +566,13 @@ for row_i in range(math.ceil(len(all_cos) / per_row)):
         is_active = co == sel_company
         if co != "전체":
             domain = companies[co]["domain"]
-            col_b.markdown(
-                f"<div class='mxp-logo-cell'>{_logo_img(domain, 15)}</div>",
-                unsafe_allow_html=True,
-            )
+            logo_content = _logo_img(domain, 15)
+        else:
+            logo_content = ""  # 빈 셀 — 다른 버튼과 수직 정렬 맞춤
+        col_b.markdown(
+            f"<div class='mxp-logo-cell'>{logo_content}</div>",
+            unsafe_allow_html=True,
+        )
         if col_b.button(
             f"{co} ({cnt})",
             key=f"co_{sel_sector}_{co}",
