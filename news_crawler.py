@@ -40,6 +40,7 @@ FILTER_TOKENS: list[str] = [
 ]
 
 GOOGLE_NEWS_RSS = "https://news.google.com/rss/search?q={query}&hl=ko&gl=KR&ceid=KR:ko"
+GEEKNEWS_RSS = "https://feeds.feedburner.com/geeknews-feed"
 
 
 @dataclass
@@ -72,6 +73,50 @@ def _matches_filter(text: str) -> bool:
         return False
     lowered = text.lower()
     return any(tok.lower() in lowered for tok in FILTER_TOKENS)
+
+
+def fetch_geeknews(
+    max_entries: int = 50,
+    filter_keywords: bool = True,
+) -> list[Article]:
+    """Geeknews (news.hada.io) RSS — feedburner 호스팅.
+
+    filter_keywords=True 면 FILTER_TOKENS 매칭만 통과 (기구개발 관심 기사만).
+    False 면 전체 50개 그대로 반환 (Geeknews 자체 큐레이션 신뢰).
+    """
+    try:
+        feed = feedparser.parse(GEEKNEWS_RSS, agent="Mozilla/5.0")
+    except Exception:
+        return []
+    out: list[Article] = []
+    seen: set[str] = set()
+    for entry in feed.entries[:max_entries]:
+        link = getattr(entry, "link", "")
+        title = _clean_text(getattr(entry, "title", ""))
+        if not link or not title or link in seen:
+            continue
+        summary_raw = _clean_text(getattr(entry, "summary", ""))
+        full_text = f"{title} {summary_raw}"
+        matched = ""
+        if filter_keywords:
+            if not _matches_filter(full_text):
+                continue
+            for tok in FILTER_TOKENS:
+                if tok.lower() in full_text.lower():
+                    matched = tok
+                    break
+        seen.add(link)
+        out.append(
+            Article(
+                title=title,
+                link=link,
+                source="Geeknews",
+                published=getattr(entry, "published", ""),
+                summary_raw=summary_raw,
+                matched_keyword=matched or "Geeknews",
+            )
+        )
+    return out
 
 
 def fetch_articles(
@@ -162,18 +207,32 @@ _CACHE: dict[str, tuple[float, list[Article]]] = {}
 _CACHE_TTL_SEC = 60 * 60  # 1시간
 
 
-def get_cached_articles(force_refresh: bool = False) -> list[Article]:
+def get_cached_articles(
+    force_refresh: bool = False,
+    sources: list[str] | None = None,
+) -> list[Article]:
+    """소스별 캐시. sources=['google','geeknews'] 둘 다 또는 하나만."""
+    sources = sources or ["google", "geeknews"]
+    cache_key = ",".join(sorted(sources))
     now = time.time()
-    cached = _CACHE.get("articles")
+    cached = _CACHE.get(cache_key)
     if not force_refresh and cached and (now - cached[0]) < _CACHE_TTL_SEC:
         return cached[1]
-    articles = fetch_articles()
-    _CACHE["articles"] = (now, articles)
-    return articles
+    combined: list[Article] = []
+    if "google" in sources:
+        combined.extend(fetch_articles())
+    if "geeknews" in sources:
+        combined.extend(fetch_geeknews(filter_keywords=False))
+    # 발행 시각 역순 (최신 먼저)
+    combined.sort(key=lambda a: a.published_dt, reverse=True)
+    _CACHE[cache_key] = (now, combined)
+    return combined
 
 
-def cache_age_seconds() -> float | None:
-    cached = _CACHE.get("articles")
+def cache_age_seconds(sources: list[str] | None = None) -> float | None:
+    sources = sources or ["google", "geeknews"]
+    cache_key = ",".join(sorted(sources))
+    cached = _CACHE.get(cache_key)
     if not cached:
         return None
     return time.time() - cached[0]

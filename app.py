@@ -247,6 +247,7 @@ st.markdown(GLOBAL_CSS, unsafe_allow_html=True)
 def _init_state() -> None:
     ss = st.session_state
     ss.setdefault("articles", [])
+    ss.setdefault("sources", ["google", "geeknews"])
     ss.setdefault("selected_idx", None)
     ss.setdefault("summary", "")
     ss.setdefault("chat_history", [])  # [{role, content}]
@@ -300,8 +301,25 @@ with st.sidebar:
         )
 
     st.markdown("---")
-    st.markdown("### 🔍 수집 키워드")
-    st.caption("아래 키워드 기반으로 Google News RSS에서 수집합니다.")
+    st.markdown("### 📡 데이터 소스")
+    source_options = {
+        "Google News (키워드 검색)": "google",
+        "Geeknews (news.hada.io)": "geeknews",
+    }
+    selected_sources_labels = st.multiselect(
+        "활성 소스",
+        options=list(source_options.keys()),
+        default=list(source_options.keys()),
+        help="여러 소스 동시 활성 가능. 비우면 결과 없음.",
+        label_visibility="collapsed",
+    )
+    st.session_state.sources = [source_options[l] for l in selected_sources_labels]
+    if not st.session_state.sources:
+        st.warning("최소 1개 소스를 선택하세요.")
+
+    st.markdown("---")
+    st.markdown("### 🔍 수집 키워드 (Google News)")
+    st.caption("아래 키워드 기반으로 Google News RSS에서 수집합니다. Geeknews는 사이트 자체 큐레이션 사용.")
     for kw in news_crawler.SEARCH_KEYWORDS:
         st.markdown(f"- {kw}")
 
@@ -327,8 +345,9 @@ st.markdown(
 # 뉴스 새로고침 (1시간 캐시)
 # ---------------------------------------------------------------------------
 def refresh_articles(force: bool = False) -> None:
-    with st.spinner("뉴스 피드를 수집 중입니다..."):
-        articles = news_crawler.get_cached_articles(force_refresh=force)
+    sources = st.session_state.get("sources") or ["google", "geeknews"]
+    with st.spinner(f"뉴스 피드를 수집 중입니다... ({', '.join(sources)})"):
+        articles = news_crawler.get_cached_articles(force_refresh=force, sources=sources)
     st.session_state.articles = articles
     st.session_state.last_refresh = datetime.now()
 
@@ -349,7 +368,7 @@ col_left, col_mid, col_right = st.columns([1.0, 1.2, 1.4], gap="medium")
 with col_left:
     st.markdown("<div class='col-card'><h3>📰 실시간 뉴스 피드</h3>", unsafe_allow_html=True)
 
-    age = news_crawler.cache_age_seconds()
+    age = news_crawler.cache_age_seconds(st.session_state.get("sources"))
     if age is not None:
         mins = int(age // 60)
         st.caption(f"마지막 수집: {mins}분 전 · 자동 갱신 주기 1시간")
