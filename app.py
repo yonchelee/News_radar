@@ -31,44 +31,87 @@ st.set_page_config(
 # ---------------------------------------------------------------------------
 GLOBAL_CSS = """
 <style>
+/* Apple Compare 디자인 톤 매핑 — News_radar */
 :root {
-    --brand-navy: #0B1F3A;
-    --brand-blue: #1F6FEB;
-    --brand-cyan: #22D3EE;
+    --bg: #ffffff;
+    --surface: #f5f5f7;
+    --surface-2: #fafafa;
+    --ink: #1d1d1f;
+    --ink-2: #6e6e73;
+    --ink-3: #86868b;
+    --line: #d2d2d7;
+    --line-soft: rgba(0,0,0,.06);
+    --accent: #0071e3;
+    --accent-link: #06c;
+    --ok-bg: #e8f5ee;
+    --ok-ink: #1f7a3a;
+    --bad-bg: #fdebeb;
+    --bad-ink: #c43e3e;
+    --ls-tight: -0.022em;
+    --ls-wide: .04em;
+    --radius: 14px;
+    --radius-s: 10px;
 }
-.main-header {
-    background: linear-gradient(90deg, var(--brand-navy) 0%, var(--brand-blue) 100%);
-    padding: 18px 24px;
-    border-radius: 12px;
-    color: #fff;
-    margin-bottom: 14px;
-}
-.main-header h1 { margin: 0; font-size: 24px; letter-spacing: 0.5px; }
-.main-header p  { margin: 4px 0 0; font-size: 13px; opacity: 0.85; }
 
+/* 베이스 폰트 — SF Pro Display/Text + 한글 폴백 */
+html, body, [class*="css"]  {
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text",
+                 "Pretendard", "Apple SD Gothic Neo", system-ui, sans-serif !important;
+    -webkit-font-smoothing: antialiased;
+    letter-spacing: -.005em;
+    color: var(--ink);
+}
+
+/* 헤더 — 미니멀, 흰 배경 + 가는 하단 라인 */
+.main-header {
+    background: var(--bg);
+    border-bottom: 1px solid var(--line);
+    padding: 24px 8px 18px;
+    border-radius: 0;
+    color: var(--ink);
+    margin-bottom: 18px;
+}
+.main-header h1 {
+    margin: 0;
+    font-size: 32px;
+    font-weight: 700;
+    letter-spacing: var(--ls-tight);
+    line-height: 1.1;
+}
+.main-header p  {
+    margin: 8px 0 0;
+    font-size: 15px;
+    color: var(--ink-2);
+    letter-spacing: -.005em;
+}
+
+/* 컬럼 카드 — 흰 배경 + hairline */
 .col-card {
-    background: #0F172A;
-    border: 1px solid #1E293B;
-    border-radius: 12px;
-    padding: 14px;
-    color: #E2E8F0;
+    background: var(--bg);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 18px;
+    color: var(--ink);
 }
 .col-card h3 {
-    margin: 0 0 10px 0;
-    color: var(--brand-cyan);
-    font-size: 16px;
-    border-bottom: 1px solid #1E293B;
-    padding-bottom: 6px;
+    margin: 0 0 12px 0;
+    color: var(--ink);
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: var(--ls-wide);
+    border-bottom: 1px solid var(--line-soft);
+    padding-bottom: 10px;
 }
 
-/* 뉴스 피드 애니메이션 */
+/* 뉴스 피드 (티커) — 흰 배경 + subtle border */
 .ticker-wrapper {
     height: 520px;
     overflow: hidden;
     position: relative;
-    background: #0F172A;
-    border: 1px solid #1E293B;
-    border-radius: 10px;
+    background: var(--bg);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-s);
     mask-image: linear-gradient(to bottom,
         transparent 0%, #000 8%, #000 92%, transparent 100%);
 }
@@ -85,36 +128,114 @@ GLOBAL_CSS = """
     100% { transform: translateY(-100%); }
 }
 .ticker-item {
-    padding: 10px 14px;
-    margin: 6px 8px;
-    background: #1E293B;
-    border-left: 3px solid var(--brand-cyan);
-    border-radius: 6px;
-    color: #E2E8F0;
-    font-size: 13px;
-    line-height: 1.45;
+    padding: 12px 14px;
+    margin: 8px 10px;
+    background: var(--surface);
+    border-left: 3px solid var(--accent);
+    border-radius: 8px;
+    color: var(--ink);
+    font-size: 13.5px;
+    line-height: 1.5;
+    letter-spacing: -.005em;
+    transition: background 150ms cubic-bezier(.2,.8,.2,1);
 }
+.ticker-item:hover { background: var(--bg); box-shadow: 0 1px 3px rgba(0,0,0,.04); }
 .ticker-item .kw {
     display: inline-block;
-    background: var(--brand-blue);
-    color: #fff;
-    font-size: 10px;
-    padding: 2px 6px;
-    border-radius: 4px;
-    margin-right: 6px;
+    background: var(--ink);
+    color: var(--bg);
+    font-size: 10.5px;
+    font-weight: 600;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+    padding: 3px 8px;
+    border-radius: 999px;
+    margin-right: 8px;
     vertical-align: middle;
 }
-.ticker-item .src { color: #94A3B8; font-size: 11px; }
+.ticker-item .src {
+    color: var(--ink-3);
+    font-size: 11.5px;
+    letter-spacing: -.003em;
+}
 
+/* 상태 뱃지 */
 .status-pill {
     display: inline-block;
-    padding: 3px 10px;
+    padding: 4px 12px;
     border-radius: 999px;
     font-size: 11px;
     font-weight: 600;
+    letter-spacing: .02em;
 }
-.status-ok   { background: #064E3B; color: #6EE7B7; }
-.status-bad  { background: #7F1D1D; color: #FCA5A5; }
+.status-ok   { background: var(--ok-bg);  color: var(--ok-ink); }
+.status-bad  { background: var(--bad-bg); color: var(--bad-ink); }
+
+/* Streamlit 기본 위젯 정제 */
+[data-testid="stSidebar"] {
+    background: var(--surface) !important;
+    border-right: 1px solid var(--line);
+}
+[data-testid="stSidebar"] h3,
+[data-testid="stSidebar"] .stMarkdown h3 {
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: var(--ls-wide);
+    color: var(--ink);
+    font-weight: 600;
+    margin-top: 18px;
+}
+.stButton > button {
+    background: var(--ink);
+    color: var(--bg);
+    border: 1px solid var(--ink);
+    border-radius: 999px;
+    padding: 8px 18px;
+    font-weight: 500;
+    letter-spacing: -.005em;
+    transition: opacity 150ms;
+}
+.stButton > button:hover { opacity: .85; background: var(--ink); color: var(--bg); }
+.stTextInput input, .stTextArea textarea, .stSelectbox > div > div {
+    border: 1px solid var(--line) !important;
+    border-radius: 10px !important;
+    background: var(--bg) !important;
+    font-family: inherit !important;
+    letter-spacing: -.005em;
+}
+.stTextInput input:focus, .stTextArea textarea:focus {
+    border-color: var(--accent) !important;
+    box-shadow: 0 0 0 3px rgba(0,113,227,.18) !important;
+}
+
+/* 채팅 메시지 카드 (Gemma 컬럼) */
+[data-testid="stChatMessage"] {
+    background: var(--surface);
+    border: 1px solid var(--line-soft);
+    border-radius: var(--radius-s);
+    padding: 12px 14px;
+    margin: 8px 0;
+}
+[data-testid="stChatMessage"][data-testid*="user"] {
+    background: var(--ink);
+    color: var(--bg);
+}
+
+/* 다운로드 버튼 강조 */
+[data-testid="stDownloadButton"] > button {
+    background: var(--accent);
+    border-color: var(--accent);
+}
+
+/* 마크다운 코드 */
+code {
+    background: var(--surface) !important;
+    color: var(--ink) !important;
+    border: 1px solid var(--line-soft);
+    border-radius: 4px;
+    padding: 1px 6px;
+    font-size: .92em;
+}
 </style>
 """
 st.markdown(GLOBAL_CSS, unsafe_allow_html=True)
