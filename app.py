@@ -135,9 +135,11 @@ html, body, [class*="css"]  {
     font-size: 11.5px; font-weight: 600;
     border-radius: 999px;
     letter-spacing: -.003em;
-    cursor: default;
+    cursor: pointer;
+    text-decoration: none;
     transition: background .15s, color .15s;
 }
+.lang-pill:hover { filter: brightness(0.97); }
 .lang-pill-active {
     background: var(--accent);
     color: #fff;
@@ -868,11 +870,32 @@ if st.session_state.get("llm_active"):
 else:
     _llm_status = '<span class="llm-pill llm-pill-off"><span class="dot"></span>키워드</span>'
 
+# 언어 토글 — query_params 기반 (헤더 HTML pill만 사용, 중복 native button 제거)
+try:
+    _qp = st.query_params
+    if "lang" in _qp:
+        _new_lang = _qp.get("lang", "ko")
+        if _new_lang in ("ko", "en") and st.session_state.get("target_lang") != _new_lang:
+            st.session_state.target_lang = _new_lang
+            # 쿼리 파라미터 제거 후 rerun (URL 깔끔히, 무한 루프 방지)
+            try:
+                _qp.clear()
+            except Exception:
+                pass
+            st.rerun()
+except Exception:
+    pass
+
 _target_lang = st.session_state.get("target_lang", "ko")
-_lang_toggle_html = f"""<div class='lang-toggle'>
-    <span class='lang-pill {"lang-pill-active" if _target_lang == "ko" else "lang-pill-inactive"}' data-lang='ko'>한국어</span>
-    <span class='lang-pill {"lang-pill-active" if _target_lang == "en" else "lang-pill-inactive"}' data-lang='en'>English</span>
-</div>"""
+# href 링크형 토글 (Streamlit iframe 내에서 ?lang=xx로 reload — query_params 트리거)
+_lang_toggle_html = (
+    "<div class='lang-toggle'>"
+    f"<a class='lang-pill {('lang-pill-active' if _target_lang == 'ko' else 'lang-pill-inactive')}' "
+    "href='?lang=ko' target='_self'>한국어</a>"
+    f"<a class='lang-pill {('lang-pill-active' if _target_lang == 'en' else 'lang-pill-inactive')}' "
+    "href='?lang=en' target='_self'>English</a>"
+    "</div>"
+)
 
 st.markdown(
     f"""
@@ -888,18 +911,6 @@ st.markdown(
     """,
     unsafe_allow_html=True,
 )
-# Streamlit native 토글 버튼 (HTML 클릭 못 받으므로 actual buttons 사용)
-_lt_c1, _lt_c2, _lt_pad = st.columns([1, 1, 8])
-if _lt_c1.button("한국어", key="lang_ko", use_container_width=True,
-                  type=("primary" if _target_lang == "ko" else "secondary")):
-    if st.session_state.target_lang != "ko":
-        st.session_state.target_lang = "ko"
-        st.rerun()
-if _lt_c2.button("English", key="lang_en", use_container_width=True,
-                  type=("primary" if _target_lang == "en" else "secondary")):
-    if st.session_state.target_lang != "en":
-        st.session_state.target_lang = "en"
-        st.rerun()
 
 
 # ---------------------------------------------------------------------------
