@@ -37,23 +37,24 @@ GLOBAL_CSS = """
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 :root {
     --bg: #ffffff;
-    --surface: #f5f5f7;
+    --surface: #f7f7f7;
     --surface-2: #fafafa;
     --ink: #1d1d1f;
-    --ink-2: #6e6e73;
-    --ink-3: #86868b;
-    --line: #d2d2d7;
-    --line-soft: rgba(0,0,0,.06);
-    --accent: #0071e3;
+    --ink-2: #555555;
+    --ink-3: #8a8a8a;
+    --line: #e5e5e5;
+    --line-soft: rgba(0,0,0,.05);
+    --accent: #03C75A;          /* 네이버 그린 */
+    --accent-dark: #02b350;
     --accent-link: #06c;
-    --ok-bg: #e8f5ee;
-    --ok-ink: #1f7a3a;
+    --ok-bg: #e8f9ed;
+    --ok-ink: #1a8a36;
     --bad-bg: #fdebeb;
     --bad-ink: #c43e3e;
     --ls-tight: -0.022em;
     --ls-wide: .04em;
-    --radius: 14px;
-    --radius-s: 10px;
+    --radius: 12px;
+    --radius-s: 8px;
 }
 
 /* 베이스 폰트 — SF Pro Display/Text + 한글 폴백 */
@@ -70,42 +71,67 @@ html, body, [class*="css"]  {
 .main-header {
     background: var(--bg);
     border-bottom: 1px solid var(--line);
-    padding: 24px 8px 18px;
+    padding: 16px 4px 14px;
     border-radius: 0;
     color: var(--ink);
-    margin-bottom: 18px;
+    margin-bottom: 14px;
+}
+.main-header .hdr-row {
+    display: flex; justify-content: space-between; align-items: flex-end;
+    gap: 12px;
 }
 .main-header h1 {
     margin: 0;
-    font-size: 32px;
+    font-size: 22px;
     font-weight: 700;
-    letter-spacing: var(--ls-tight);
-    line-height: 1.1;
+    letter-spacing: -.015em;
+    line-height: 1.2;
+    color: var(--ink);
 }
-.main-header p  {
-    margin: 8px 0 0;
-    font-size: 15px;
-    color: var(--ink-2);
-    letter-spacing: -.005em;
+.main-header h1::before {
+    content: ""; display: inline-block;
+    width: 4px; height: 18px; background: var(--accent);
+    margin-right: 8px; vertical-align: -3px; border-radius: 2px;
 }
+.main-header .hdr-sub {
+    margin: 4px 0 0;
+    font-size: 12.5px;
+    color: var(--ink-3);
+    letter-spacing: -.003em;
+}
+.main-header .hdr-meta {
+    font-size: 12px; color: var(--ink-2);
+}
+.llm-pill {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 3px 10px;
+    font-size: 11.5px; font-weight: 600;
+    background: var(--accent); color: #fff;
+    border-radius: 999px;
+    letter-spacing: -.003em;
+}
+.llm-pill .dot { width: 6px; height: 6px; border-radius: 50%; background: #fff; display: inline-block; }
+.llm-pill-off { background: var(--ink-3); color: #fff; }
+.llm-pill-off .dot { background: #fff; opacity: .7; }
 
 /* 컬럼 카드 — 흰 배경 + hairline */
 .col-card {
     background: var(--bg);
     border: 1px solid var(--line);
     border-radius: var(--radius);
-    padding: 18px;
+    padding: 4px 0 0;
     color: var(--ink);
+    overflow: hidden;
 }
 .col-card h3 {
-    margin: 0 0 12px 0;
+    margin: 0;
+    padding: 14px 16px 10px;
     color: var(--ink);
-    font-size: 12px;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: var(--ls-wide);
-    border-bottom: 1px solid var(--line-soft);
-    padding-bottom: 10px;
+    font-size: 14px;
+    font-weight: 700;
+    letter-spacing: -.005em;
+    border-bottom: 1px solid var(--line);
+    text-transform: none;
 }
 
 /* 뉴스 피드 (티커) — 흰 배경 + subtle border */
@@ -218,32 +244,32 @@ html, body, [class*="css"]  {
 }
 .sent-total { margin-left: auto; font-size: 11px; color: var(--ink-2); }
 
-/* 기사 카드 (카드 그리드) */
+/* 기사 리스트 카드 — 네이버 뉴스 스타일 (행 단위, hairline divider) */
 .art-card {
     background: var(--bg);
-    border: 1px solid var(--line);
-    border-left: 3px solid var(--ink-2);
-    border-radius: 10px;
-    padding: 12px 14px;
-    margin: 8px 0;
-    transition: transform 150ms cubic-bezier(.2,.8,.2,1), box-shadow 150ms;
+    border: 0;
+    border-bottom: 1px solid var(--line);
+    border-left: 3px solid transparent;
+    border-radius: 0;
+    padding: 14px 16px 14px 14px;
+    margin: 0;
+    transition: background 120ms;
     cursor: pointer;
 }
 .art-card:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(0,0,0,.06);
+    background: var(--surface-2);
 }
 .art-card.card-sent-positive { border-left-color: var(--sent-pos); }
 .art-card.card-sent-negative { border-left-color: var(--sent-neg); }
 .art-card.card-sent-neutral  { border-left-color: var(--sent-neu); }
 .art-card-selected {
-    background: var(--surface);
-    border-color: var(--ink);
-    box-shadow: 0 0 0 2px rgba(29,29,31,.08);
+    background: #f0fbf4;        /* 네이버 그린 hover tint */
+    border-left-color: var(--accent);
 }
 .art-card-head {
     display: flex; justify-content: space-between; align-items: center;
-    margin-bottom: 6px;
+    gap: 8px;
+    margin-bottom: 4px;
 }
 .sent-badge {
     display: inline-flex; align-items: center; gap: 3px;
@@ -260,16 +286,19 @@ html, body, [class*="css"]  {
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .art-title {
-    font-size: 14px; font-weight: 600;
-    line-height: 1.35; letter-spacing: -.008em;
+    font-size: 16px; font-weight: 600;
+    line-height: 1.4; letter-spacing: -.012em;
     color: var(--ink);
     margin: 4px 0 6px;
-}
-.art-summary {
-    font-size: 12px; color: var(--ink-2);
-    line-height: 1.45;
     display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
     overflow: hidden;
+}
+.art-summary {
+    font-size: 13px; color: var(--ink-2);
+    line-height: 1.5;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+    overflow: hidden;
+    letter-spacing: -.003em;
 }
 .art-meta {
     margin-top: 8px;
@@ -284,10 +313,32 @@ html, body, [class*="css"]  {
 }
 
 /* sentiment 필터 라디오 가로 정렬 */
-[data-testid="stHorizontalBlock"] [data-testid="stRadio"] > div {
+[data-testid="stHorizontalBlock"] [data-testid="stRadio"] > div,
+[data-testid="stRadio"] > div[role="radiogroup"] {
     flex-direction: row !important;
-    gap: 8px;
+    gap: 2px;
+    border-bottom: 1px solid var(--line);
 }
+[data-testid="stRadio"] label {
+    position: relative;
+    padding: 8px 12px 10px !important;
+    border-radius: 0 !important;
+    font-size: 13px !important;
+    font-weight: 500 !important;
+    color: var(--ink-2) !important;
+    letter-spacing: -.003em;
+}
+[data-testid="stRadio"] label:hover { color: var(--ink) !important; }
+[data-testid="stRadio"] label[data-checked="true"] {
+    color: var(--accent) !important;
+    font-weight: 700 !important;
+}
+[data-testid="stRadio"] label[data-checked="true"]::after {
+    content: ""; position: absolute; left: 12px; right: 12px; bottom: -1px;
+    height: 2px; background: var(--accent);
+}
+/* 라디오 원형 아이콘 숨김 (탭처럼 보이게) */
+[data-testid="stRadio"] label > div:first-child { display: none !important; }
 
 /* 상태 뱃지 */
 .status-pill {
@@ -316,16 +367,20 @@ html, body, [class*="css"]  {
     margin-top: 18px;
 }
 .stButton > button {
-    background: var(--ink);
-    color: var(--bg);
-    border: 1px solid var(--ink);
-    border-radius: 999px;
-    padding: 8px 18px;
+    background: var(--accent);
+    color: #fff;
+    border: 1px solid var(--accent);
+    border-radius: 8px;
+    padding: 8px 16px;
     font-weight: 500;
-    letter-spacing: -.005em;
-    transition: opacity 150ms;
+    letter-spacing: -.003em;
+    font-size: 13px;
+    transition: background 120ms;
 }
-.stButton > button:hover { opacity: .85; background: var(--ink); color: var(--bg); }
+.stButton > button:hover { background: var(--accent-dark); color: #fff; border-color: var(--accent-dark); }
+/* 보조 버튼 (선택/원문 등 카드 내) — 흰 배경 */
+.stButton:has(button[kind="secondary"]) > button { background: #fff; color: var(--ink); border-color: var(--line); }
+.stButton:has(button[kind="secondary"]) > button:hover { background: var(--surface); }
 .stTextInput input, .stTextArea textarea, .stSelectbox > div > div {
     border: 1px solid var(--line) !important;
     border-radius: 10px !important;
@@ -335,7 +390,7 @@ html, body, [class*="css"]  {
 }
 .stTextInput input:focus, .stTextArea textarea:focus {
     border-color: var(--accent) !important;
-    box-shadow: 0 0 0 3px rgba(0,113,227,.18) !important;
+    box-shadow: 0 0 0 3px rgba(3,199,90,.18) !important;
 }
 
 /* 채팅 메시지 카드 (Gemma 컬럼) */
@@ -405,77 +460,35 @@ _init_state()
 # 사이드바: 환경설정
 # ---------------------------------------------------------------------------
 with st.sidebar:
-    st.markdown("### 시스템 설정")
 
-    # ---- LLM 백엔드 선택 ----
-    backend_options = {
-        "Groq (Cloud, llama-3.3-70b)": "groq",
-        "Gemini (Cloud, 2.0 Flash)":    "gemini",
-        "Ollama (로컬, Gemma 3)":       "ollama",
-    }
-    current_label = next(
-        (l for l, k in backend_options.items() if k == st.session_state.llm_backend),
-        list(backend_options.keys())[0]
-    )
-    selected = st.radio(
-        "LLM 엔진",
-        list(backend_options.keys()),
-        index=list(backend_options.keys()).index(current_label),
-        help="Streamlit Cloud에서는 Groq/Gemini 권장. 영채님 PC에서 로컬 테스트는 Ollama.",
-    )
-    st.session_state.llm_backend = backend_options[selected]
-    backend = st.session_state.llm_backend
-
-    # ---- 백엔드별 설정 ----
-    if backend == "ollama":
-        st.session_state.ollama_url = st.text_input(
-            "Ollama Endpoint",
-            value=st.session_state.ollama_url,
-            help="로컬 Ollama 서버 주소",
-        )
-        available = gemma_client.is_available("ollama", base_url=st.session_state.ollama_url)
-        if available:
-            st.markdown("<span class='status-pill status-ok'>● Ollama 연결됨</span>", unsafe_allow_html=True)
-            models = gemma_client.list_models("ollama", base_url=st.session_state.ollama_url)
-            gemma_models = [m for m in models if "gemma" in m.lower()] or models
-            if gemma_models:
-                idx = gemma_models.index(st.session_state.model_name) if st.session_state.model_name in gemma_models else 0
-                st.session_state.model_name = st.selectbox("모델 선택", gemma_models, index=idx)
-            else:
-                st.warning("설치된 모델 없음. `ollama pull gemma3` 실행 필요.")
-        else:
-            st.markdown("<span class='status-pill status-bad'>● Ollama 연결 실패</span>", unsafe_allow_html=True)
-            st.caption("`ollama serve` 가 11434 포트에서 실행 중인지 확인. Streamlit Cloud에선 Groq/Gemini 사용 권장.")
-            st.session_state.model_name = st.text_input("모델 이름", value=st.session_state.model_name)
-        st.session_state.llm_api_key = ""
-    else:
-        # Groq / Gemini
-        secret_name = "GROQ_API_KEY" if backend == "groq" else "GEMINI_API_KEY"
-        api_key = ""
+    # ---- LLM 백엔드 자동 감지 (UI 노출 없음) ----
+    def _detect_backend():
         try:
-            api_key = st.secrets.get(secret_name, "") or ""
+            if st.secrets.get("GROQ_API_KEY", "").strip():
+                return "groq", st.secrets["GROQ_API_KEY"].strip(), gemma_client.GROQ_DEFAULT_MODEL
         except Exception:
             pass
-        if not api_key:
-            # 사용자가 직접 입력 가능 (개발용)
-            api_key = st.text_input(
-                f"{secret_name} (또는 Streamlit secrets에 추가)",
-                type="password",
-                value="",
-                help=f"Streamlit Cloud 대시보드 → App Settings → Secrets 에 '{secret_name} = ...' 추가 권장.",
-            )
-        st.session_state.llm_api_key = api_key
-        if api_key:
-            st.markdown(f"<span class='status-pill status-ok'>● {backend.title()} 연결 준비</span>", unsafe_allow_html=True)
-            models = gemma_client.list_models(backend)
-            default_model = gemma_client.GROQ_DEFAULT_MODEL if backend == "groq" else gemma_client.GEMINI_DEFAULT_MODEL
-            if st.session_state.model_name not in models:
-                st.session_state.model_name = default_model
-            idx = models.index(st.session_state.model_name) if st.session_state.model_name in models else 0
-            st.session_state.model_name = st.selectbox("모델 선택", models, index=idx)
-        else:
-            st.markdown(f"<span class='status-pill status-bad'>● {backend.title()} API 키 미설정</span>", unsafe_allow_html=True)
-            st.caption(f"`.streamlit/secrets.toml` 또는 Cloud 대시보드에 {secret_name} 추가하세요. README 참조.")
+        try:
+            if st.secrets.get("GEMINI_API_KEY", "").strip():
+                return "gemini", st.secrets["GEMINI_API_KEY"].strip(), gemma_client.GEMINI_DEFAULT_MODEL
+        except Exception:
+            pass
+        try:
+            if gemma_client.is_available("ollama", base_url=gemma_client.OLLAMA_BASE_URL):
+                models = gemma_client.list_models("ollama")
+                model = next((m for m in models if "gemma" in m.lower()), models[0] if models else gemma_client.OLLAMA_DEFAULT_MODEL)
+                return "ollama", "", model
+        except Exception:
+            pass
+        return "none", "", ""
+
+    if "llm_auto_detected" not in st.session_state:
+        backend, key, model = _detect_backend()
+        st.session_state.llm_backend = backend if backend != "none" else "groq"
+        st.session_state.llm_api_key = key
+        st.session_state.model_name = model or gemma_client.GROQ_DEFAULT_MODEL
+        st.session_state.llm_active = (backend != "none")
+        st.session_state.llm_auto_detected = True
 
     st.markdown("---")
     st.markdown("### 데이터 소스")
@@ -533,11 +546,25 @@ with st.sidebar:
 # ---------------------------------------------------------------------------
 # 헤더
 # ---------------------------------------------------------------------------
+# 네이버 스타일 미니멀 헤더
+_llm_status = ""
+if st.session_state.get("llm_active"):
+    _b = st.session_state.get("llm_backend", "")
+    _b_label = {"groq": "Groq", "gemini": "Gemini", "ollama": "Ollama"}.get(_b, _b)
+    _llm_status = f'<span class="llm-pill"><span class="dot"></span>AI {_b_label}</span>'
+else:
+    _llm_status = '<span class="llm-pill llm-pill-off"><span class="dot"></span>키워드</span>'
+
 st.markdown(
-    """
+    f"""
     <div class="main-header">
-        <h1>선행기구개발그룹 뉴스 레이더</h1>
-        <p>모바일 · 전기차 · 부품 / 신소재 트렌드를 Gemma 3로 실시간 분석합니다.</p>
+        <div class="hdr-row">
+            <div>
+                <h1>선행기구개발 뉴스 레이더</h1>
+                <p class="hdr-sub">모바일 · 전기차 · 부품·신소재 — 실시간 큐레이션</p>
+            </div>
+            <div class="hdr-meta">{_llm_status}</div>
+        </div>
     </div>
     """,
     unsafe_allow_html=True,
