@@ -15,6 +15,7 @@ import streamlit as st
 
 import gemma_client
 import news_crawler
+import sentiment_classifier
 from ppt_generator import build_pptx
 
 
@@ -162,6 +163,103 @@ html, body, [class*="css"]  {
     letter-spacing: -.003em;
 }
 
+/* sentiment 색상 토큰 */
+:root {
+    --sent-pos: #34c759;
+    --sent-pos-bg: #e8f9ed;
+    --sent-neg: #ff3b30;
+    --sent-neg-bg: #ffeceb;
+    --sent-neu: #8e8e93;
+    --sent-neu-bg: #f5f5f7;
+}
+
+/* sentiment 통계 헤더 */
+.sent-stats {
+    display: flex; flex-wrap: wrap; gap: 8px; align-items: center;
+    margin: 8px 0 12px;
+}
+.sent-pill {
+    display: inline-flex; align-items: center; gap: 4px;
+    font-size: 12px; font-weight: 600;
+    padding: 4px 10px; border-radius: 999px;
+    letter-spacing: -.005em;
+}
+.sent-pill-pos { background: var(--sent-pos-bg); color: #1a8a36; }
+.sent-pill-neg { background: var(--sent-neg-bg); color: #c0271f; }
+.sent-pill-neu { background: var(--sent-neu-bg); color: var(--ink-2); }
+.sent-total { margin-left: auto; font-size: 11px; color: var(--ink-2); }
+
+/* 기사 카드 (카드 그리드) */
+.art-card {
+    background: var(--bg);
+    border: 1px solid var(--line);
+    border-left: 3px solid var(--ink-2);
+    border-radius: 10px;
+    padding: 12px 14px;
+    margin: 8px 0;
+    transition: transform 150ms cubic-bezier(.2,.8,.2,1), box-shadow 150ms;
+    cursor: pointer;
+}
+.art-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0,0,0,.06);
+}
+.art-card.card-sent-positive { border-left-color: var(--sent-pos); }
+.art-card.card-sent-negative { border-left-color: var(--sent-neg); }
+.art-card.card-sent-neutral  { border-left-color: var(--sent-neu); }
+.art-card-selected {
+    background: var(--surface);
+    border-color: var(--ink);
+    box-shadow: 0 0 0 2px rgba(29,29,31,.08);
+}
+.art-card-head {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 6px;
+}
+.sent-badge {
+    display: inline-flex; align-items: center; gap: 3px;
+    font-size: 10.5px; font-weight: 600;
+    padding: 2px 8px; border-radius: 999px;
+    letter-spacing: -.003em;
+}
+.sent-badge-positive { background: var(--sent-pos-bg); color: #1a8a36; }
+.sent-badge-negative { background: var(--sent-neg-bg); color: #c0271f; }
+.sent-badge-neutral  { background: var(--sent-neu-bg); color: var(--ink-2); }
+.art-src {
+    font-size: 11px; color: var(--ink-3);
+    max-width: 60%;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.art-title {
+    font-size: 14px; font-weight: 600;
+    line-height: 1.35; letter-spacing: -.008em;
+    color: var(--ink);
+    margin: 4px 0 6px;
+}
+.art-summary {
+    font-size: 12px; color: var(--ink-2);
+    line-height: 1.45;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+.art-meta {
+    margin-top: 8px;
+    display: flex; justify-content: space-between; align-items: center;
+}
+.art-kw {
+    display: inline-block;
+    font-size: 10px; font-weight: 500;
+    padding: 2px 8px; border-radius: 999px;
+    background: var(--surface); color: var(--ink-2);
+    letter-spacing: .02em; text-transform: uppercase;
+}
+
+/* sentiment 필터 라디오 가로 정렬 */
+[data-testid="stHorizontalBlock"] [data-testid="stRadio"] > div {
+    flex-direction: row !important;
+    gap: 8px;
+}
+
 /* 상태 뱃지 */
 .status-pill {
     display: inline-block;
@@ -259,6 +357,7 @@ def _init_state() -> None:
     ss.setdefault("summary", "")
     ss.setdefault("chat_history", [])  # [{role, content}]
     ss.setdefault("model_name", gemma_client.DEFAULT_MODEL)
+    ss.setdefault("sentiment_filter", "all")   # all | positive | negative | neutral
     ss.setdefault("ollama_url", gemma_client.OLLAMA_BASE_URL)
     # LLM 백엔드 — Streamlit Cloud 호스트면 'groq' 기본, 로컬이면 'ollama'
     import os
@@ -438,7 +537,7 @@ col_left, col_mid, col_right = st.columns([1.0, 1.2, 1.4], gap="medium")
 # 좌측: 실시간 뉴스 피드 (애니메이션)
 # ===========================================================================
 with col_left:
-    st.markdown("<div class='col-card'><h3>📰 실시간 뉴스 피드</h3>", unsafe_allow_html=True)
+    st.markdown("<div class='col-card'><h3>📰 기사 그리드</h3>", unsafe_allow_html=True)
 
     age = news_crawler.cache_age_seconds(st.session_state.get("sources"))
     if age is not None:
@@ -450,35 +549,72 @@ with col_left:
     if not articles:
         st.info("수집된 기사가 없습니다. 사이드바의 새로고침을 눌러주세요.")
     else:
-        items_html_parts = []
-        for art in articles:
-            safe_title = html.escape(art.title)
-            safe_kw = html.escape(art.matched_keyword)
-            safe_src = html.escape(art.source or "")
-            items_html_parts.append(
-                f"""<div class='ticker-item'>
-                    <span class='kw'>{safe_kw}</span>
-                    <div>{safe_title}</div>
-                    <div class='src'>{safe_src}</div>
-                </div>"""
-            )
-        # 무한 루프 효과를 위해 한 번 더 복제
-        items_html = "".join(items_html_parts) * 2
+        # sentiment 계산 (캐시)
+        if "sentiments" not in st.session_state or len(st.session_state.sentiments) != len(articles):
+            st.session_state.sentiments = [
+                sentiment_classifier.classify(a.title, a.summary_raw) for a in articles
+            ]
+        sents = st.session_state.sentiments
+        stats = sentiment_classifier.stats(sents)
+
+        # 통계 헤더
         st.markdown(
-            f"<div class='ticker-wrapper'><div class='ticker-track'>{items_html}</div></div>",
+            f"""<div class='sent-stats'>
+                <span class='sent-pill sent-pill-pos'>🟢 긍정 {stats['positive']}</span>
+                <span class='sent-pill sent-pill-neg'>🔴 부정 {stats['negative']}</span>
+                <span class='sent-pill sent-pill-neu'>⚪ 중립 {stats['neutral']}</span>
+                <span class='sent-total'>총 {stats['total']}건</span>
+            </div>""",
             unsafe_allow_html=True,
         )
 
-        st.markdown("---")
-        st.markdown("**기사 선택** — 우측 컬럼에서 분석/요약")
-        options = [f"{i+1}. {a.title[:60]}" for i, a in enumerate(articles)]
-        sel = st.selectbox(
-            "기사 선택",
-            options=list(range(len(articles))),
-            format_func=lambda i: options[i],
+        # sentiment 필터 라디오 (가로)
+        sf_options = {
+            f"전체 ({stats['total']})": "all",
+            f"긍정 ({stats['positive']})": "positive",
+            f"부정 ({stats['negative']})": "negative",
+            f"중립 ({stats['neutral']})": "neutral",
+        }
+        cur_label = next((l for l, v in sf_options.items() if v == st.session_state.sentiment_filter), list(sf_options.keys())[0])
+        sel_label = st.radio(
+            "sentiment",
+            list(sf_options.keys()),
+            index=list(sf_options.keys()).index(cur_label),
+            horizontal=True,
             label_visibility="collapsed",
         )
-        st.session_state.selected_idx = sel
+        st.session_state.sentiment_filter = sf_options[sel_label]
+
+        # 필터링
+        filtered = [
+            (i, a, s) for i, (a, s) in enumerate(zip(articles, sents))
+            if st.session_state.sentiment_filter == "all" or s.label == st.session_state.sentiment_filter
+        ]
+        st.caption(f"표시 중: {len(filtered)}건")
+
+        # 카드 그리드 — 1열 좌측 컬럼이라 세로 stack, 카드별 select 버튼
+        for idx, art, sent in filtered[:50]:   # 최대 50건 표시
+            safe_title = html.escape(art.title)
+            safe_src = html.escape(art.source or "")
+            safe_kw = html.escape(art.matched_keyword)
+            safe_summary = html.escape((art.summary_raw or "")[:120])
+            sent_class = f"card-sent-{sent.label}"
+            is_selected = (st.session_state.get("selected_idx") == idx)
+            card_class = "art-card" + (" art-card-selected" if is_selected else "")
+            st.markdown(
+                f"""<div class='{card_class} {sent_class}' onclick='void(0)'>
+                    <div class='art-card-head'>
+                        <span class='sent-badge sent-badge-{sent.label}'>{sent.emoji} {sent.label_ko}</span>
+                        <span class='art-src'>{safe_src}</span>
+                    </div>
+                    <div class='art-title'>{safe_title}</div>
+                    <div class='art-summary'>{safe_summary}</div>
+                    <div class='art-meta'><span class='art-kw'>{safe_kw}</span></div>
+                </div>""",
+                unsafe_allow_html=True,
+            )
+            if st.button(f"선택", key=f"select_{idx}", use_container_width=True):
+                st.session_state.selected_idx = idx
 
     st.markdown("</div>", unsafe_allow_html=True)
 
