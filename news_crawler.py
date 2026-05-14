@@ -99,6 +99,13 @@ SOURCES: dict[str, Source] = {
     "thelec":      Source("thelec", "The Elec (전자부품)", "https://www.thelec.kr/rss/allArticle.xml", "kr-component", "ko"),
     "irobotnews":  Source("irobotnews", "로봇신문", "https://www.irobotnews.com/rss/allArticle.xml", "kr-component", "ko", True),
     "epnc":        Source("epnc", "전자부품뉴스", "https://www.epnc.co.kr/rss/allArticle.xml", "kr-component", "ko"),
+
+    # --- 중화권 IT (한자, Gemma가 한국어로 번역 요약) ---
+    "ithome_cn":   Source("ithome_cn", "IT之家", "https://www.ithome.com/rss/", "cn", "zh"),
+    "cnbeta":      Source("cnbeta", "CnBeta", "https://www.cnbeta.com.tw/backend.php", "cn", "zh"),
+    "36kr":        Source("36kr", "36Kr", "https://www.36kr.com/feed", "cn", "zh"),
+    "sspai":       Source("sspai", "少数派 (sspai)", "https://sspai.com/feed", "cn", "zh"),
+    "geekpark":    Source("geekpark", "GeekPark", "https://www.geekpark.net/rss", "cn", "zh"),
 }
 
 CATEGORY_LABELS = {
@@ -109,6 +116,7 @@ CATEGORY_LABELS = {
     "community":    "💬 커뮤니티",
     "kr-it":        "🇰🇷 국내 IT",
     "kr-component": "⚙️ 부품·소재",
+    "cn":           "🇨🇳 중화권 IT",
 }
 
 GOOGLE_NEWS_RSS = "https://news.google.com/rss/search?q={query}&hl=ko&gl=KR&ceid=KR:ko"
