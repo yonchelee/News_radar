@@ -468,34 +468,140 @@ code {
 .comp-stat-lbl { font-size: 12.5px; color: var(--ink-2); }
 .comp-stat-sep { color: var(--line); margin: 0 4px; }
 
-/* 기업 카드 */
+/* 기업 카드 (일반 그리드 — compact) */
 .comp-card {
+    position: relative;
     background: var(--bg);
     border: 1px solid var(--line);
     border-left: 4px solid var(--ink-3);
     border-radius: 10px;
-    padding: 14px 14px 12px;
+    padding: 10px 11px 10px;
     margin: 4px 0;
     transition: background 120ms, box-shadow 120ms;
     min-height: 130px;
 }
-.comp-card:hover { background: var(--surface-2); box-shadow: 0 2px 8px rgba(0,0,0,.05); }
+.comp-card:hover { box-shadow: 0 2px 8px rgba(0,0,0,.05); }
 .comp-strip-pos { border-left-color: var(--sent-pos); }
 .comp-strip-neg { border-left-color: var(--sent-neg); }
 .comp-strip-neu { border-left-color: var(--sent-neu); }
+/* 배경 틴트 — neg ratio 높으면 옅은 빨강, pos 높으면 옅은 그린 */
+.comp-tint-neg { background: #fef2f1; }
+.comp-tint-pos { background: #f0fbf4; }
 .comp-card-selected {
-    background: #f0fbf4;
+    background: #e8f9ed;
     border-left-color: var(--accent);
     box-shadow: 0 0 0 2px rgba(3,199,90,.15);
 }
 .comp-name {
-    font-size: 16px; font-weight: 700; letter-spacing: -.012em;
+    font-size: 15px; font-weight: 700; letter-spacing: -.012em;
     color: var(--ink); line-height: 1.2;
+    display: flex; align-items: center; gap: 6px;
 }
 .comp-cat {
     margin-top: 2px;
     font-size: 11px; color: var(--ink-3);
     letter-spacing: .02em;
+}
+
+/* 상태 아이콘 — ▲ ▼ ! (이모지 X, 텍스트 글리프) */
+.comp-status-icon {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 18px; height: 18px;
+    font-size: 13px; font-weight: 700;
+    border-radius: 999px;
+    line-height: 1;
+}
+.comp-status-warn  { background: var(--sent-neg); color: #fff; }
+.comp-status-down  { color: var(--sent-neg); font-size: 14px; }
+.comp-status-up    { color: var(--sent-pos); font-size: 14px; }
+
+/* 키워드 chip (sentiment matched tokens) */
+.kw-row { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+.kw-chip {
+    display: inline-block;
+    font-size: 10px; font-weight: 500;
+    padding: 2px 7px; border-radius: 6px;
+    background: var(--bg);
+    letter-spacing: -.003em;
+    border: 1px solid var(--line);
+    color: var(--ink-2);
+}
+.kw-chip-pos { border-color: rgba(26,138,54,.45); color: #1a8a36; }
+.kw-chip-neg { border-color: rgba(196,62,62,.45); color: var(--sent-neg); }
+.kw-more { font-size: 10px; color: var(--ink-3); padding: 2px 4px; }
+
+/* === TOP 3 hero 카드 === */
+.hero-card {
+    position: relative;
+    background: var(--bg);
+    border: 1px solid var(--line);
+    border-left: 6px solid var(--ink-3);
+    border-radius: 14px;
+    padding: 18px 20px 16px;
+    min-height: 220px;
+    margin: 4px 0;
+    transition: box-shadow 120ms;
+}
+.hero-card:hover { box-shadow: 0 4px 14px rgba(0,0,0,.07); }
+.hero-card.hero-warn { border-left-color: var(--sent-neg); background: #fef2f1; }
+.hero-card.hero-event { border-left-color: var(--accent); background: #f0fbf4; }
+.hero-card.hero-volume { border-left-color: #ff9500; background: #fff7ec; }
+.hero-card.hero-info { border-left-color: #0071e3; background: #f0f7ff; }
+.hero-reason {
+    font-size: 10.5px; font-weight: 700;
+    text-transform: uppercase; letter-spacing: .07em;
+    color: var(--ink-2);
+}
+.hero-warn  .hero-reason { color: var(--sent-neg); }
+.hero-event .hero-reason { color: var(--accent-dark); }
+.hero-volume .hero-reason { color: #d97000; }
+.hero-info  .hero-reason { color: #0071e3; }
+.hero-company {
+    display: flex; align-items: center; gap: 8px;
+    margin-top: 6px;
+    font-size: 22px; font-weight: 800; letter-spacing: -.018em;
+    color: var(--ink); line-height: 1.15;
+}
+.hero-status-icon {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 26px; height: 26px;
+    font-size: 17px; font-weight: 800;
+    border-radius: 999px; line-height: 1;
+}
+.hero-status-warn { background: var(--sent-neg); color: #fff; }
+.hero-status-down { color: var(--sent-neg); }
+.hero-status-up   { color: var(--sent-pos); }
+.hero-ratio-row { display: flex; align-items: center; gap: 10px; margin: 12px 0 8px; }
+.hero-ratio-bar { flex: 1; height: 8px; border-radius: 4px; background: var(--surface); display: flex; overflow: hidden; }
+.hero-ratio-bar > div { height: 100%; }
+.hero-counts { font-size: 12px; color: var(--ink-2); white-space: nowrap; }
+.hero-counts .hc-pos { color: var(--sent-pos); font-weight: 700; }
+.hero-counts .hc-neg { color: var(--sent-neg); font-weight: 700; }
+.hero-counts .hc-neu { color: var(--ink-3); }
+.hero-preview {
+    margin: 8px 0 6px; padding: 8px 10px;
+    background: rgba(255,255,255,.6);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    font-size: 12px; line-height: 1.5; color: var(--ink-2);
+}
+.hero-preview .hp-title { color: var(--ink); font-weight: 500; }
+
+/* === 섹션 라벨 + hairline === */
+.section-label {
+    display: flex; align-items: baseline; justify-content: space-between;
+    margin: 22px 0 10px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid var(--line);
+}
+.section-label .sl-title {
+    font-size: 13px; font-weight: 700;
+    text-transform: uppercase; letter-spacing: .08em;
+    color: var(--ink);
+}
+.section-label .sl-sub {
+    font-size: 11px; color: var(--ink-3);
+    letter-spacing: -.003em;
 }
 .comp-ratio {
     display: flex;
@@ -627,14 +733,15 @@ code {
 }
 
 
-/* 회사 카드 산업 chip */
-.comp-inds { display: flex; flex-wrap: wrap; gap: 4px; margin: 6px 0 8px; }
-.comp-ind-chip {
+/* 회사 카드 산업 chip — 통일 베이스 */
+.comp-inds { display: flex; flex-wrap: wrap; gap: 4px; margin: 6px 0 6px; }
+.comp-ind-chip, .country-chip, .filter-chip-base {
     display: inline-block;
-    font-size: 10px; font-weight: 500;
-    padding: 2px 7px; border-radius: 999px;
+    font-size: 9.5px; font-weight: 500;
+    padding: 2px 6px; border-radius: 6px;
     background: var(--surface); color: var(--ink-2);
     letter-spacing: -.003em;
+    border: 1px solid var(--line);
 }
 
 </style>
@@ -717,14 +824,36 @@ with st.sidebar:
     # 데이터 소스 — 모든 소스 자동 활성 (UI 노출 없음)
     st.session_state.sources = list(news_crawler.SOURCES.keys())
 
-    st.markdown("---")
-    st.markdown("### 수집 키워드 (Google News)")
-    st.caption("아래 키워드 기반으로 Google News RSS에서 수집합니다. Geeknews는 사이트 자체 큐레이션 사용.")
-    for kw in news_crawler.SEARCH_KEYWORDS:
-        st.markdown(f"- {kw}")
+    st.markdown("### 검색")
+    search_query = st.text_input(
+        "회사명/키워드",
+        key="search_query",
+        placeholder="예: 삼성, AI, 리콜",
+        label_visibility="collapsed",
+    )
+
+    st.markdown("### 정렬")
+    sort_options_sidebar = {
+        "부정 비율 높은 순": "neg_ratio",
+        "총 기사 수 많은 순": "count",
+        "알파벳순": "alpha",
+    }
+    sort_label_sidebar = st.selectbox(
+        "정렬 기준",
+        list(sort_options_sidebar.keys()),
+        index=0,
+        key="sort_mode_select",
+        label_visibility="collapsed",
+    )
+    st.session_state.sort_mode = sort_options_sidebar[sort_label_sidebar]
 
     st.markdown("---")
     refresh_clicked = st.button("새로고침 ↻", use_container_width=True)
+
+    with st.expander("수집 키워드 (Google News)", expanded=False):
+        st.caption("아래 키워드 기반으로 Google News RSS에서 수집합니다.")
+        for kw in news_crawler.SEARCH_KEYWORDS:
+            st.markdown(f"- {kw}")
 
 
 # ---------------------------------------------------------------------------
@@ -957,38 +1086,114 @@ else:
     # 이후 모든 처리 (Top of Mind / 통계 / 카드 그리드)는 company_articles_filtered 사용
     company_articles = company_articles_filtered
 
-    # === 오늘 주목 (Top of Mind) — 자동 큐레이션 ===
-    highlights = top_of_mind.compute_top_of_mind(company_articles, limit=5)
-    if highlights:
-        st.markdown("<div class='tom-section-head'><h2>오늘 주목</h2><span class='tom-sub'>자동 큐레이션 · 부정 집중 · 다중 매체 · 주요 이벤트</span></div>", unsafe_allow_html=True)
-        tom_cols = st.columns(len(highlights), gap="small")
-        for col, h in zip(tom_cols, highlights):
+    # === Helper: 회사별 핵심 키워드 추출 (sentiment 매칭 토큰 top N) ===
+    def _company_keywords(arr, top_n=3):
+        from collections import Counter
+        pos_c, neg_c = Counter(), Counter()
+        for _, _a, s in arr:
+            for tok in (getattr(s, "pos_hits", None) or []):
+                pos_c[tok] += 1
+            for tok in (getattr(s, "neg_hits", None) or []):
+                neg_c[tok] += 1
+        out = []
+        # 부정 토큰 우선 (more actionable), 빈도순
+        for tok, _cnt in neg_c.most_common(top_n):
+            out.append((tok, "neg"))
+        for tok, _cnt in pos_c.most_common(top_n):
+            if len(out) >= top_n:
+                break
+            out.append((tok, "pos"))
+        return out[:top_n], pos_c.total() + neg_c.total()
+
+    def _status_icon_html(pos_pct, neg_pct, scale="comp"):
+        prefix = scale  # "comp" or "hero"
+        if neg_pct >= 50:
+            return f"<span class='{prefix}-status-icon {prefix}-status-warn' title='경고: 부정 비율 매우 높음'>!</span>"
+        if neg_pct >= 30:
+            return f"<span class='{prefix}-status-icon {prefix}-status-down' title='하락 신호: 부정 비율 30%+'>▼</span>"
+        if pos_pct >= 60:
+            return f"<span class='{prefix}-status-icon {prefix}-status-up' title='상승 신호: 긍정 비율 60%+'>▲</span>"
+        return ""
+
+    def _kw_chips_html(kws, max_chips=3):
+        if not kws:
+            return ""
+        chips = "".join(
+            f"<span class='kw-chip kw-chip-{kind}' title='매칭 키워드'>{html.escape(tok)}</span>"
+            for tok, kind in kws[:max_chips]
+        )
+        return f"<div class='kw-row'>{chips}</div>"
+
+    # === 오늘 주목 (TOP 3 hero) ===
+    highlights = top_of_mind.compute_top_of_mind(company_articles, limit=10)
+    top3 = highlights[:3]
+    if top3:
+        st.markdown(
+            "<div class='section-label'><span class='sl-title'>오늘 주목</span>"
+            "<span class='sl-sub'>자동 큐레이션 · 부정 집중 · 다중 매체 · 주요 이벤트</span></div>",
+            unsafe_allow_html=True,
+        )
+        hero_cols = st.columns(len(top3), gap="medium")
+        for col, h in zip(hero_cols, top3):
+            arr = company_articles.get(h.company, [])
+            pos = sum(1 for _, _, s in arr if s.label == "positive")
+            neg = sum(1 for _, _, s in arr if s.label == "negative")
+            neu = sum(1 for _, _, s in arr if s.label == "neutral")
+            total = len(arr) or 1
+            pos_pct = pos * 100 // total
+            neg_pct = neg * 100 // total
+            neu_pct = 100 - pos_pct - neg_pct
+            kws, _ = _company_keywords(arr, top_n=5)
+            sicon = _status_icon_html(pos_pct, neg_pct, scale="hero")
+            # 관련 기사 미리보기 (제목 1-2건)
+            preview_arts = arr[:2]
+            preview_html = ""
+            for _, a, _ in preview_arts:
+                t = html.escape((getattr(a, "title_localized", None) or a.title or "")[:80])
+                preview_html += f"<div class='hero-preview'><span class='hp-title'>{t}</span></div>"
+            kw_chips = "".join(
+                f"<span class='kw-chip kw-chip-{kind}'>{html.escape(tok)}</span>"
+                for tok, kind in kws[:4]
+            )
+            kw_block = f"<div class='kw-row'>{kw_chips}</div>" if kw_chips else ""
             col.markdown(
-                f"""<div class='tom-card tom-card-{h.type}'>
-                    <div class='tom-reason'>{html.escape(h.reason)}</div>
-                    <div class='tom-company'>{html.escape(h.company)}</div>
-                    <div class='tom-detail'>{html.escape(h.detail)}</div>
+                f"""<div class='hero-card hero-{h.type}'>
+                    <div class='hero-reason'>{html.escape(h.reason)} · {html.escape(h.detail)}</div>
+                    <div class='hero-company'>{sicon}<span>{html.escape(h.company)}</span></div>
+                    <div class='hero-ratio-row'>
+                        <div class='hero-ratio-bar'>
+                            <div class='r-pos' style='width:{pos_pct}%'></div>
+                            <div class='r-neg' style='width:{neg_pct}%'></div>
+                            <div class='r-neu' style='width:{neu_pct}%'></div>
+                        </div>
+                        <div class='hero-counts'>
+                            <span class='hc-pos'>{pos}</span> ·
+                            <span class='hc-neg'>{neg}</span> ·
+                            <span class='hc-neu'>{neu}</span> /{total}
+                        </div>
+                    </div>
+                    {kw_block}
+                    {preview_html}
                 </div>""",
                 unsafe_allow_html=True,
             )
-            if col.button("상세", key=f"tom_{h.company}", use_container_width=True):
+            if col.button(f"{h.company} 상세 분석", key=f"hero_{h.company}", use_container_width=True):
                 st.session_state.selected_company = h.company
                 st.rerun()
-        st.markdown("<div style='height:18px'></div>", unsafe_allow_html=True)
+        st.markdown("<div style='height:12px'></div>", unsafe_allow_html=True)
 
-    # 정렬
-    sort_options = {
-        "부정 비율 높은 순": "neg_ratio",
-        "총 기사 수 많은 순": "count",
-        "알파벳순": "alpha",
-    }
-    sort_label = st.selectbox(
-        "정렬",
-        list(sort_options.keys()),
-        index=0,
-        label_visibility="collapsed",
-    )
-    sort_mode = sort_options[sort_label]
+    # 사이드바에서 정렬 모드 가져오기
+    sort_mode = st.session_state.get("sort_mode", "neg_ratio")
+
+    # 검색 필터 적용 (회사명 또는 기사 제목에 매치)
+    _q = (st.session_state.get("search_query") or "").strip().lower()
+    if _q:
+        company_articles = {
+            c: arr for c, arr in company_articles.items()
+            if (_q in c.lower())
+               or any(_q in ((a.title or "") + " " + (a.summary_raw or "")).lower()
+                      for _, a, _s in arr)
+        }
 
     # 정렬
     def _stats_for(arr):
@@ -1025,47 +1230,124 @@ else:
     if not company_list:
         st.info("선택된 카테고리에 매칭되는 기업이 없습니다.")
     else:
-        # 기업 카드 그리드 (4열)
-        N_COLS = 4
-        rows = [company_list[i:i+N_COLS] for i in range(0, len(company_list), N_COLS)]
         selected_company = st.session_state.get("selected_company")
+        # 최신 기사 회사 — 최근 6시간 내 published_dt 가진 article 보유 회사
+        from datetime import datetime as _dt, timezone as _tz, timedelta as _td
+        _cutoff = _dt.now(_tz.utc) - _td(hours=6)
 
-        for row in rows:
-            cols = st.columns(N_COLS, gap="small")
-            for col, (cname, arr) in zip(cols, row):
-                pos, neg, neu, total, neg_ratio = _stats_for(arr)
-                pos_pct = pos * 100 // total if total else 0
-                neg_pct = neg * 100 // total if total else 0
-                neu_pct = 100 - pos_pct - neg_pct
-                cat_lbl = company_extractor.category_label(cname)
-                is_sel = (selected_company == cname)
-                sel_class = " comp-card-selected" if is_sel else ""
-                # neg 비율 높으면 카드 좌측 strip 빨강, 긍정 비율 높으면 초록
-                strip = "neg" if neg_ratio >= 0.35 else ("pos" if pos / max(total,1) >= 0.5 else "neu")
-                ind_lbls = company_extractor.industry_labels(cname)[:3]
-                ind_chips = "".join(f"<span class='comp-ind-chip'>{html.escape(l)}</span>" for l in ind_lbls)
-                col.markdown(
-                    f"""<div class='comp-card comp-strip-{strip}{sel_class}'>
-                        <div class='comp-name'>{html.escape(cname)}</div>
-                        <div class='comp-cat'>{html.escape(cat_lbl)}</div>
-                        <div class='comp-inds'>{ind_chips}</div>
-                        <div class='comp-ratio'>
-                            <div class='r-pos' style='width:{pos_pct}%'></div>
-                            <div class='r-neg' style='width:{neg_pct}%'></div>
-                            <div class='r-neu' style='width:{neu_pct}%'></div>
-                        </div>
-                        <div class='comp-nums'>
-                            <span class='nb-pos'>{pos}</span>
-                            <span class='nb-neg'>{neg}</span>
-                            <span class='nb-neu'>{neu}</span>
-                            <span class='nb-total'>{total}건</span>
-                        </div>
-                    </div>""",
-                    unsafe_allow_html=True,
-                )
-                if col.button("상세", key=f"comp_sel_{cname}", use_container_width=True):
-                    st.session_state.selected_company = cname
-                    st.rerun()
+        def _has_recent(arr):
+            for _, a, _s in arr:
+                dt = getattr(a, "published_dt", None)
+                if dt is not None and dt >= _cutoff:
+                    return True
+            return False
+
+        # 섹션별 분류
+        all_companies = company_list  # already sorted by neg_ratio
+        neg_focus = [(c, arr) for c, arr in all_companies
+                     if _stats_for(arr)[4] >= 0.4 and _stats_for(arr)[3] >= 3][:8]
+        most_mentioned = sorted(all_companies, key=lambda kv: -_stats_for(kv[1])[3])[:8]
+        recent_companies = [(c, arr) for c, arr in all_companies if _has_recent(arr)][:8]
+
+        # 이미 hero에서 노출된 회사는 섹션에서 dim 처리 안하고 그냥 노출 — 사용자 메모리 유지
+
+        def _render_card_grid(items, n_cols=5, section_key=""):
+            """items: [(cname, arr), ...] → compact 카드 그리드."""
+            if not items:
+                return
+            rows = [items[i:i+n_cols] for i in range(0, len(items), n_cols)]
+            for row_i, row in enumerate(rows):
+                cols = st.columns(n_cols, gap="small")
+                for ci, item in enumerate(row):
+                    cname, arr = item
+                    col = cols[ci]
+                    pos, neg, neu, total, neg_ratio = _stats_for(arr)
+                    pos_pct = pos * 100 // total if total else 0
+                    neg_pct = neg * 100 // total if total else 0
+                    neu_pct = 100 - pos_pct - neg_pct
+                    pos_ratio = pos / total if total else 0
+                    cat_lbl = company_extractor.category_label(cname)
+                    is_sel = (selected_company == cname)
+                    sel_class = " comp-card-selected" if is_sel else ""
+                    strip = "neg" if neg_ratio >= 0.35 else ("pos" if pos_ratio >= 0.5 else "neu")
+                    # 배경 틴트
+                    tint_class = ""
+                    if neg_ratio >= 0.4:
+                        tint_class = " comp-tint-neg"
+                    elif pos_ratio >= 0.6:
+                        tint_class = " comp-tint-pos"
+                    ind_lbls = company_extractor.industry_labels(cname)[:3]
+                    ind_chips = "".join(f"<span class='comp-ind-chip'>{html.escape(l)}</span>" for l in ind_lbls)
+                    # 상태 아이콘
+                    sicon = _status_icon_html(pos_pct, neg_pct, scale="comp")
+                    # 키워드 chip
+                    kws, _kw_total = _company_keywords(arr, top_n=3)
+                    kw_html = _kw_chips_html(kws, max_chips=3)
+                    # tooltip: 비중 큰 뉴스 제목 (max 2)
+                    title_hints = []
+                    for _, a, _s in arr[:2]:
+                        t = (getattr(a, "title_localized", None) or a.title or "")[:80]
+                        if t:
+                            title_hints.append(t)
+                    tooltip = " · ".join(title_hints).replace('"', "&quot;").replace("'", "&#39;")
+                    col.markdown(
+                        f"""<div class='comp-card comp-strip-{strip}{tint_class}{sel_class}' title="{html.escape(tooltip)}">
+                            <div class='comp-name'><span>{html.escape(cname)}</span>{sicon}</div>
+                            <div class='comp-cat'>{html.escape(cat_lbl)}</div>
+                            <div class='comp-inds'>{ind_chips}</div>
+                            <div class='comp-ratio'>
+                                <div class='r-pos' style='width:{pos_pct}%'></div>
+                                <div class='r-neg' style='width:{neg_pct}%'></div>
+                                <div class='r-neu' style='width:{neu_pct}%'></div>
+                            </div>
+                            <div class='comp-nums'>
+                                <span class='nb-pos'>{pos}</span>
+                                <span class='nb-neg'>{neg}</span>
+                                <span class='nb-neu'>{neu}</span>
+                                <span class='nb-total'>{total}건</span>
+                            </div>
+                            {kw_html}
+                        </div>""",
+                        unsafe_allow_html=True,
+                    )
+                    if col.button("상세", key=f"comp_sel_{section_key}_{cname}", use_container_width=True):
+                        st.session_state.selected_company = cname
+                        st.rerun()
+
+        # --- 부정 집중 섹션 ---
+        if neg_focus:
+            st.markdown(
+                "<div class='section-label'><span class='sl-title'>부정 집중</span>"
+                "<span class='sl-sub'>부정 비율 40%+ · 기사 3건+</span></div>",
+                unsafe_allow_html=True,
+            )
+            _render_card_grid(neg_focus, n_cols=5, section_key="neg")
+
+        # --- 최다 언급 ---
+        if most_mentioned:
+            st.markdown(
+                "<div class='section-label'><span class='sl-title'>가장 많이 언급된 회사</span>"
+                f"<span class='sl-sub'>전체 {len(all_companies)}개 기업 중 상위 8</span></div>",
+                unsafe_allow_html=True,
+            )
+            _render_card_grid(most_mentioned, n_cols=5, section_key="vol")
+
+        # --- 최신 이슈 ---
+        if recent_companies:
+            st.markdown(
+                "<div class='section-label'><span class='sl-title'>최신 이슈</span>"
+                "<span class='sl-sub'>최근 6시간 신규 기사 회사</span></div>",
+                unsafe_allow_html=True,
+            )
+            _render_card_grid(recent_companies, n_cols=5, section_key="rec")
+
+        # --- 전체 ---
+        st.markdown(
+            f"<div class='section-label'><span class='sl-title'>전체</span>"
+            f"<span class='sl-sub'>{len(all_companies)}개 기업</span></div>",
+            unsafe_allow_html=True,
+        )
+        _render_card_grid(all_companies, n_cols=5, section_key="all")
 
         # 상세 패널
         if selected_company and selected_company in company_articles:
