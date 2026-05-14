@@ -18,6 +18,7 @@ import news_crawler
 import sentiment_classifier
 import company_extractor
 import top_of_mind
+import topic_classifier
 from ppt_generator import build_pptx
 
 
@@ -586,6 +587,15 @@ code {
     line-height: 1.4;
 }
 
+
+/* === 3단계 필터 라벨 === */
+.filter-row-label {
+    font-size: 11px; font-weight: 600;
+    text-transform: uppercase; letter-spacing: .05em;
+    color: var(--ink-3);
+    margin: 10px 0 6px;
+}
+
 </style>
 """
 st.markdown(GLOBAL_CSS, unsafe_allow_html=True)
@@ -660,51 +670,8 @@ with st.sidebar:
         st.session_state.llm_active = (backend != "none")
         st.session_state.llm_auto_detected = True
 
-    st.markdown("---")
-    st.markdown("### 데이터 소스")
-
-    # 카테고리별 그룹 + checkbox. 기본: 한국어 소스 활성, 영문 비활성
-    DEFAULT_ACTIVE = {
-        "google", "geeknews",
-        "zdnetkr", "ddaily", "venturesquare",
-        "thelec", "irobotnews", "epnc",
-        "bloomberg_business", "bloomberg_tech",
-        "bbc_business", "cnbc_business",
-        "nyt_business",
-    }
-
-    if "sources" not in st.session_state or not isinstance(st.session_state.sources, list):
-        st.session_state.sources = sorted(DEFAULT_ACTIVE)
-
-    col_a, col_b = st.columns(2)
-    if col_a.button("전체 선택", use_container_width=True, key="src_all"):
-        st.session_state.sources = list(news_crawler.SOURCES.keys())
-        st.rerun()
-    if col_b.button("모두 해제", use_container_width=True, key="src_none"):
-        st.session_state.sources = []
-        st.rerun()
-
-    # 카테고리별 그룹화
-    by_cat: dict[str, list] = {}
-    for k, s in news_crawler.SOURCES.items():
-        by_cat.setdefault(s.category, []).append(s)
-
-    new_selection: list[str] = []
-    for cat_key, cat_label in news_crawler.CATEGORY_LABELS.items():
-        srcs = by_cat.get(cat_key, [])
-        if not srcs:
-            continue
-        active_in_cat = sum(1 for s in srcs if s.key in st.session_state.sources)
-        with st.expander(f"{cat_label} ({active_in_cat}/{len(srcs)})", expanded=(cat_key in {"kw","kr-it","kr-component"})):
-            for s in srcs:
-                checked = s.key in st.session_state.sources
-                lang_badge = "한" if s.language == "ko" else "EN"
-                if st.checkbox(f"{s.name}  ·  {lang_badge}", value=checked, key=f"src_cb_{s.key}"):
-                    new_selection.append(s.key)
-    st.session_state.sources = new_selection
-
-    if not new_selection:
-        st.warning("최소 1개 소스를 선택하세요.")
+    # 데이터 소스 — 모든 소스 자동 활성 (UI 노출 없음)
+    st.session_state.sources = list(news_crawler.SOURCES.keys())
 
     st.markdown("---")
     st.markdown("### 수집 키워드 (Google News)")
@@ -783,6 +750,96 @@ else:
         for cname in company_extractor.extract_companies(art.title, art.summary_raw):
             company_articles.setdefault(cname, []).append((i, art, s))
 
+    # === 3단계 분류 필터 ===
+    # 대분류 (topic) — 단일 선택
+    TOPIC_OPTIONS = {"전체": "all", "모바일": "mobile", "AI": "ai", "로봇": "robot"}
+    cur_topic = st.session_state.get("topic_filter", "all")
+    cur_topic_label = next((l for l, v in TOPIC_OPTIONS.items() if v == cur_topic), "전체")
+    sel_topic = st.radio(
+        "대분류",
+        list(TOPIC_OPTIONS.keys()),
+        index=list(TOPIC_OPTIONS.keys()).index(cur_topic_label),
+        horizontal=True,
+        label_visibility="collapsed",
+    )
+    st.session_state.topic_filter = TOPIC_OPTIONS[sel_topic]
+    selected_topic = st.session_state.topic_filter
+
+    # 대분류 적용 — 기사별 topic 캐시
+    if "article_topics" not in st.session_state or len(st.session_state.article_topics) != len(articles):
+        st.session_state.article_topics = [
+            topic_classifier.classify_topic(a.title, a.summary_raw) for a in articles
+        ]
+    article_topics = st.session_state.article_topics
+
+    if selected_topic != "all":
+        filtered_article_idxs = {i for i, t in enumerate(article_topics) if selected_topic in t}
+    else:
+        filtered_article_idxs = set(range(len(articles)))
+
+    # company_articles 를 대분류로 재필터링
+    company_articles_filtered: dict = {}
+    for cname, arr in company_articles.items():
+        kept = [(i, a, s) for (i, a, s) in arr if i in filtered_article_idxs]
+        if kept:
+            company_articles_filtered[cname] = kept
+
+    # 중분류 (country) — 다중 선택 chip
+    countries_present = sorted({
+        company_extractor.country_of(n)
+        for n in company_articles_filtered.keys()
+    } - {""})
+    cur_countries = st.session_state.get("country_filter", [])
+    if countries_present:
+        st.markdown("<div class='filter-row-label'>국가</div>", unsafe_allow_html=True)
+        cn_cols = st.columns(max(1, min(len(countries_present), 7)))
+        for idx, ck in enumerate(countries_present):
+            lbl = company_extractor.COUNTRY_LABELS.get(ck, ck)
+            is_active = ck in cur_countries
+            suffix = "  ✓" if is_active else ""
+            if cn_cols[idx % len(cn_cols)].button(lbl + suffix, key=f"cn_{ck}", use_container_width=True):
+                if is_active:
+                    cur_countries.remove(ck)
+                else:
+                    cur_countries.append(ck)
+                st.session_state.country_filter = cur_countries
+                st.rerun()
+
+    if cur_countries:
+        company_articles_filtered = {
+            n: arr for n, arr in company_articles_filtered.items()
+            if company_extractor.country_of(n) in cur_countries
+        }
+
+    # 소분류 (회사) — 다중 선택 chip (현재 필터 결과 회사들만 노출)
+    companies_present = sorted(company_articles_filtered.keys())
+    cur_companies = st.session_state.get("company_select_filter", [])
+    if companies_present and len(companies_present) <= 30:
+        st.markdown("<div class='filter-row-label'>회사</div>", unsafe_allow_html=True)
+        per_row = 7
+        rows = [companies_present[i:i+per_row] for i in range(0, len(companies_present), per_row)]
+        for row in rows:
+            row_cols = st.columns(per_row)
+            for idx, cn in enumerate(row):
+                is_active = cn in cur_companies
+                suffix = "  ✓" if is_active else ""
+                if row_cols[idx].button(cn + suffix, key=f"sel_{cn}", use_container_width=True):
+                    if is_active:
+                        cur_companies.remove(cn)
+                    else:
+                        cur_companies.append(cn)
+                    st.session_state.company_select_filter = cur_companies
+                    st.rerun()
+
+    if cur_companies:
+        company_articles_filtered = {
+            n: arr for n, arr in company_articles_filtered.items()
+            if n in cur_companies
+        }
+
+    # 이후 모든 처리 (Top of Mind / 통계 / 카드 그리드)는 company_articles_filtered 사용
+    company_articles = company_articles_filtered
+
     # === 오늘 주목 (Top of Mind) — 자동 큐레이션 ===
     highlights = top_of_mind.compute_top_of_mind(company_articles, limit=5)
     if highlights:
@@ -802,26 +859,6 @@ else:
                 st.rerun()
         st.markdown("<div style='height:18px'></div>", unsafe_allow_html=True)
 
-    # 카테고리 chip 필터 (기업 카테고리)
-    cat_keys_present = sorted({
-        company_extractor.category_key(n)
-        for n in company_articles.keys()
-    } - {""})
-
-    ss_cf = st.session_state.get("company_cat_filter", [])
-    cat_cols = st.columns(max(1, min(len(cat_keys_present), 6)))
-    for idx, ck in enumerate(cat_keys_present):
-        lbl = company_extractor.CATEGORY_LABELS.get(ck, ck)
-        is_active = ck in ss_cf
-        suffix = "  ✓" if is_active else ""
-        if cat_cols[idx % len(cat_cols)].button(lbl + suffix, key=f"ccat_{ck}", use_container_width=True):
-            if is_active:
-                ss_cf.remove(ck)
-            else:
-                ss_cf.append(ck)
-            st.session_state.company_cat_filter = ss_cf
-            st.rerun()
-
     # 정렬
     sort_options = {
         "부정 비율 높은 순": "neg_ratio",
@@ -835,13 +872,6 @@ else:
         label_visibility="collapsed",
     )
     sort_mode = sort_options[sort_label]
-
-    # 카테고리 필터 적용
-    if ss_cf:
-        company_articles = {
-            n: arr for n, arr in company_articles.items()
-            if company_extractor.category_key(n) in ss_cf
-        }
 
     # 정렬
     def _stats_for(arr):

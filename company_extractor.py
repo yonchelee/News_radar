@@ -15,8 +15,9 @@ from dataclasses import dataclass
 class Company:
     name: str
     aliases: list[str]
-    category: str   # korea_tech | korea_auto | korea_other | global_tech | global_auto | china_tech | china_auto | japan | semi | supply
+    category: str
     category_label: str = ""
+    country: str = ""    # korea | us | china | japan | europe | taiwan
 
 
 # ---------------------------------------------------------------------------
@@ -84,8 +85,46 @@ COMPANIES: list[Company] = [
     Company("Lenovo",      ["Lenovo", "레노버", "联想", "ThinkPad"], "china_tech", "중국 테크"),
 ]
 
+# category → country 매핑
+_CATEGORY_TO_COUNTRY = {
+    "korea_tech":   "korea",
+    "korea_auto":   "korea",
+    "korea_other":  "korea",
+    "global_tech":  "us",        # global_tech 카테고리에 미국 빅테크 + 기타 다국적 섞여 있음. 회사별 override 아래
+    "global_auto":  "us",
+    "china_tech":   "china",
+    "china_auto":   "china",
+    "japan":        "japan",
+    "semi":         "taiwan",    # TSMC 기본, ASML override 아래
+    "supply":       "taiwan",    # Foxconn 기본, Pegatron 동일
+}
+# 회사 단위 country override
+_COUNTRY_OVERRIDES = {
+    "ASML":      "europe",
+    "BMW":       "europe",
+    "Mercedes":  "europe",
+    "Volkswagen":"europe",
+    "Nokia":     "europe",
+    "ARM":       "europe",
+    "Asus":      "taiwan",
+    "Lenovo":    "china",
+    "Motorola":  "us",
+    "Foxconn":   "taiwan",
+    "Pegatron":  "taiwan",
+    "Sony":      "japan",
+    "Toyota":    "japan",
+    "Panasonic": "japan",
+    "Honda":     "japan",
+}
+for _c in COMPANIES:
+    _c.country = _COUNTRY_OVERRIDES.get(_c.name) or _CATEGORY_TO_COUNTRY.get(_c.category, "")
+
 # 빠른 lookup용
 COMPANY_BY_NAME: dict[str, Company] = {c.name: c for c in COMPANIES}
+
+def country_of(name: str) -> str:
+    c = COMPANY_BY_NAME.get(name)
+    return c.country if c else ""
 
 
 # ---------------------------------------------------------------------------
@@ -139,6 +178,15 @@ def category_key(company_name: str) -> str:
 # ---------------------------------------------------------------------------
 # 카테고리 메타
 # ---------------------------------------------------------------------------
+COUNTRY_LABELS: dict[str, str] = {
+    "korea":  "한국",
+    "us":     "미국",
+    "china":  "중국",
+    "japan":  "일본",
+    "europe": "유럽",
+    "taiwan": "대만",
+}
+
 CATEGORY_LABELS: dict[str, str] = {
     "korea_tech":   "한국 테크",
     "korea_auto":   "한국 자동차",
