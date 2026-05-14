@@ -19,6 +19,7 @@ import sentiment_classifier
 import company_extractor
 import top_of_mind
 import topic_classifier
+import translator
 from ppt_generator import build_pptx
 
 
@@ -116,6 +117,35 @@ html, body, [class*="css"]  {
 .llm-pill .dot { width: 6px; height: 6px; border-radius: 50%; background: #fff; display: inline-block; }
 .llm-pill-off { background: var(--ink-3); color: #fff; }
 .llm-pill-off .dot { background: #fff; opacity: .7; }
+
+/* 언어 토글 (KO/EN) — 헤더 우측 */
+.lang-toggle {
+    display: inline-flex;
+    gap: 0;
+    background: var(--bg-2, #f7f7f7);
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    padding: 2px;
+    margin-right: 6px;
+    vertical-align: middle;
+}
+.lang-pill {
+    display: inline-flex; align-items: center;
+    padding: 3px 12px;
+    font-size: 11.5px; font-weight: 600;
+    border-radius: 999px;
+    letter-spacing: -.003em;
+    cursor: default;
+    transition: background .15s, color .15s;
+}
+.lang-pill-active {
+    background: var(--accent);
+    color: #fff;
+}
+.lang-pill-inactive {
+    background: transparent;
+    color: var(--ink-2);
+}
 
 /* 컬럼 카드 — 흰 배경 + hairline */
 .col-card {
@@ -636,6 +666,9 @@ def _init_state() -> None:
     ss.setdefault("sort_mode", "latest")        # latest | sentiment_strong | by_source
     ss.setdefault("cat_filter", [])             # 카테고리 다중 선택 (빈 = 전체)
     ss.setdefault("llm_boost_done", False)
+    ss.setdefault("target_lang", "ko")     # ko | en
+    ss.setdefault("translation_cache", {})  # {hash: translated_text}
+    ss.setdefault("translated_signature", "")
     ss.setdefault("ollama_url", gemma_client.OLLAMA_BASE_URL)
     # LLM 백엔드 — Streamlit Cloud 호스트면 'groq' 기본, 로컬이면 'ollama'
     import os
@@ -706,6 +739,12 @@ if st.session_state.get("llm_active"):
 else:
     _llm_status = '<span class="llm-pill llm-pill-off"><span class="dot"></span>키워드</span>'
 
+_target_lang = st.session_state.get("target_lang", "ko")
+_lang_toggle_html = f"""<div class='lang-toggle'>
+    <span class='lang-pill {"lang-pill-active" if _target_lang == "ko" else "lang-pill-inactive"}' data-lang='ko'>한국어</span>
+    <span class='lang-pill {"lang-pill-active" if _target_lang == "en" else "lang-pill-inactive"}' data-lang='en'>English</span>
+</div>"""
+
 st.markdown(
     f"""
     <div class="main-header">
@@ -714,12 +753,24 @@ st.markdown(
                 <h1>선행기구개발 뉴스 레이더</h1>
                 <p class="hdr-sub">모바일 · 전기차 · 부품·신소재 — 실시간 큐레이션</p>
             </div>
-            <div class="hdr-meta">{_llm_status}</div>
+            <div class="hdr-meta">{_lang_toggle_html}<span style='display:inline-block;width:10px'></span>{_llm_status}</div>
         </div>
     </div>
     """,
     unsafe_allow_html=True,
 )
+# Streamlit native 토글 버튼 (HTML 클릭 못 받으므로 actual buttons 사용)
+_lt_c1, _lt_c2, _lt_pad = st.columns([1, 1, 8])
+if _lt_c1.button("한국어", key="lang_ko", use_container_width=True,
+                  type=("primary" if _target_lang == "ko" else "secondary")):
+    if st.session_state.target_lang != "ko":
+        st.session_state.target_lang = "ko"
+        st.rerun()
+if _lt_c2.button("English", key="lang_en", use_container_width=True,
+                  type=("primary" if _target_lang == "en" else "secondary")):
+    if st.session_state.target_lang != "en":
+        st.session_state.target_lang = "en"
+        st.rerun()
 
 
 # ---------------------------------------------------------------------------
@@ -746,6 +797,69 @@ if refresh_clicked or not st.session_state.articles:
 
 articles = st.session_state.articles
 sents = st.session_state.get("sentiments", [])
+
+# === 자동 번역 (target_lang 으로) ===
+target_lang = st.session_state.get("target_lang", "ko")
+llm_active = st.session_state.get("llm_active", False)
+backend = st.session_state.get("llm_backend", "")
+
+if articles and llm_active and backend:
+    # 번역 시그니처 — articles 수 + target_lang. 바뀌면 재번역
+    sig = f"{len(articles)}:{target_lang}"
+    if st.session_state.get("translated_signature") != sig:
+        # 번역 필요 항목 collect (다른 언어 + 캐시 없는 것)
+        cache = st.session_state.translation_cache
+        to_translate: list[dict] = []
+        for i, a in enumerate(articles):
+            for field in ("title", "summary_raw"):
+                txt = getattr(a, field, "") or ""
+                if not txt.strip():
+                    continue
+                lang = translator.detect_lang(txt)
+                if lang == target_lang:
+                    continue
+                h = translator.text_hash(txt, target_lang)
+                if h in cache:
+                    continue
+                to_translate.append({"id": f"{i}_{field}", "text": txt[:400], "_hash": h})
+
+        if to_translate:
+            def _chat_fn(messages):
+                return gemma_client.chat(
+                    messages,
+                    backend=backend,
+                    model=st.session_state.get("model_name", ""),
+                    base_url=st.session_state.get("ollama_url", ""),
+                    api_key=st.session_state.get("llm_api_key", ""),
+                    temperature=0.2,
+                )
+            with st.spinner(f"기사 {len(to_translate)}건 {translator.LANG_NAME[target_lang]}로 번역 중..."):
+                results = translator.translate_batch(to_translate, target_lang, _chat_fn, batch_size=10)
+            # 결과 캐시 저장
+            id_to_result = {r["id"]: r["text"] for r in results}
+            for it in to_translate:
+                translated = id_to_result.get(it["id"], it["text"])
+                cache[it["_hash"]] = translated
+            st.session_state.translation_cache = cache
+
+        # 각 article에 _localized 필드 부여
+        for i, a in enumerate(articles):
+            for field in ("title", "summary_raw"):
+                txt = getattr(a, field, "") or ""
+                if not txt.strip():
+                    continue
+                lang = translator.detect_lang(txt)
+                if lang == target_lang:
+                    setattr(a, f"{field}_localized", txt)
+                else:
+                    h = translator.text_hash(txt, target_lang)
+                    setattr(a, f"{field}_localized", cache.get(h, txt))
+        st.session_state.translated_signature = sig
+else:
+    # LLM 비활성이면 원문 그대로
+    for a in (articles or []):
+        a.title_localized = getattr(a, "title", "")
+        a.summary_raw_localized = getattr(a, "summary_raw", "")
 
 if not articles:
     st.info("수집된 기사가 없습니다. 좌측 사이드바의 새로고침을 눌러주세요.")
@@ -979,7 +1093,7 @@ else:
             if st.session_state.get("llm_active") and dcol2.button(f"{selected_company} 종합 분석", key="comp_synth", use_container_width=True):
                 with st.spinner(f"{selected_company} 관련 {total}건을 LLM이 종합 분석 중..."):
                     titles_summary = "\n".join(
-                        f"- [{s.label_ko}] {a.title}: {(a.summary_raw or '')[:150]}"
+                        f"- [{s.label_ko}] {getattr(a, 'title_localized', None) or a.title}: {(getattr(a, 'summary_raw_localized', None) or a.summary_raw or '')[:150]}"
                         for _, a, s in sel_arr[:20]
                     )
                     try:
@@ -1014,8 +1128,8 @@ else:
                             <span class='sent-badge sent-badge-{sent.label}'><span class='dot'></span>{sent.label_ko}</span>
                             <span class='art-src'>{html.escape(art.source or "")}</span>
                         </div>
-                        <div class='art-title'><a href='{html.escape(art.link)}' target='_blank' rel='noopener'>{html.escape(art.title)}</a></div>
-                        <div class='art-summary'>{html.escape((art.summary_raw or "")[:200])}</div>
+                        <div class='art-title'><a href='{html.escape(art.link)}' target='_blank' rel='noopener'>{html.escape(getattr(art, "title_localized", None) or art.title)}</a></div>
+                        <div class='art-summary'>{html.escape((getattr(art, "summary_raw_localized", None) or art.summary_raw or "")[:200])}</div>
                     </div>""",
                     unsafe_allow_html=True,
                 )
