@@ -149,3 +149,62 @@ def stats(results: list[SentimentResult]) -> dict:
     total = len(results)
     avg = sum(r.score for r in results) / total if total else 0.0
     return {"positive": pos, "negative": neg, "neutral": neu, "total": total, "avg_score": round(avg, 3)}
+
+
+
+# ---------------------------------------------------------------------------
+# LLM 보강 분류 (선택) — 회색지대만 batch 호출
+# ---------------------------------------------------------------------------
+def classify_with_llm(
+    articles: list,
+    base_results: list[SentimentResult],
+    llm_chat_fn,
+    threshold: float = 0.2,
+    batch_size: int = 10,
+) -> list[SentimentResult]:
+    """키워드 점수 |score| < threshold 만 LLM에 batch 분류 위탁.
+
+    llm_chat_fn(messages) -> str (OpenAI 호환 응답 문자열). 실패 시 base_results 그대로.
+    Groq/Gemini/Ollama 어떤 백엔드든 messages 인자로 호출 가능한 함수면 됨.
+    """
+    borderline_idxs = [i for i, r in enumerate(base_results) if abs(r.score) < threshold]
+    if not borderline_idxs:
+        return base_results
+
+    out = list(base_results)
+    for start in range(0, len(borderline_idxs), batch_size):
+        chunk = borderline_idxs[start:start + batch_size]
+        items = []
+        for j, idx in enumerate(chunk):
+            a = articles[idx]
+            title = getattr(a, "title", "")
+            summary = getattr(a, "summary_raw", "") or ""
+            items.append(f"[{j+1}] {title[:140]}\n    {summary[:200]}")
+        prompt = (
+            "다음 뉴스 기사 각각을 sentiment 분류하라. "
+            "응답은 정확히 다음 형식의 한 줄씩, 추가 텍스트 없이:\n"
+            "[1] positive\n[2] negative\n[3] neutral\n...\n\n"
+            "기준: positive (호재/성장/긍정 톤), negative (악재/리스크/하락 톤), neutral (사실 전달/모호).\n\n"
+            "기사:\n" + "\n\n".join(items)
+        )
+        try:
+            resp = llm_chat_fn([
+                {"role": "system", "content": "You are a sentiment classifier. Reply only with the requested format."},
+                {"role": "user", "content": prompt},
+            ])
+        except Exception:
+            continue
+        # 파싱
+        for line in resp.splitlines():
+            m = re.match(r"\s*\[(\d+)\]\s*(positive|negative|neutral)", line.strip(), re.I)
+            if not m:
+                continue
+            j = int(m.group(1)) - 1
+            label = m.group(2).lower()
+            if 0 <= j < len(chunk):
+                idx = chunk[j]
+                # Score는 ±0.5 정도로 보정 (LLM 결과 신뢰)
+                score = {"positive": 0.5, "negative": -0.5, "neutral": 0.0}[label]
+                out[idx] = SentimentResult(label, score,
+                                            out[idx].pos_hits, out[idx].neg_hits)
+    return out

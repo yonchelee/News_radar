@@ -109,14 +109,14 @@ SOURCES: dict[str, Source] = {
 }
 
 CATEGORY_LABELS = {
-    "kw":           "🔍 키워드 검색",
-    "global":       "🌐 글로벌 테크",
-    "mobile":       "📱 모바일",
-    "ev":           "🔋 EV·배터리",
-    "community":    "💬 커뮤니티",
-    "kr-it":        "🇰🇷 국내 IT",
-    "kr-component": "⚙️ 부품·소재",
-    "cn":           "🇨🇳 중화권 IT",
+    "kw":           "키워드 검색",
+    "global":       "글로벌 테크",
+    "mobile":       "모바일",
+    "ev":           "EV·배터리",
+    "community":    "커뮤니티",
+    "kr-it":        "국내 IT",
+    "kr-component": "부품·소재",
+    "cn":           "중화권 IT",
 }
 
 GOOGLE_NEWS_RSS = "https://news.google.com/rss/search?q={query}&hl=ko&gl=KR&ceid=KR:ko"

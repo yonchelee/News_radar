@@ -187,6 +187,35 @@ html, body, [class*="css"]  {
 .sent-pill-pos { background: var(--sent-pos-bg); color: #1a8a36; }
 .sent-pill-neg { background: var(--sent-neg-bg); color: #c0271f; }
 .sent-pill-neu { background: var(--sent-neu-bg); color: var(--ink-2); }
+/* sentiment dot (이모지 대체) — 6px solid circle */
+.sent-pill .dot, .sent-badge .dot {
+    display: inline-block;
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: currentColor;
+    margin-right: 5px;
+    vertical-align: 0px;
+}
+.sent-pill-pos .dot { background: var(--sent-pos); }
+.sent-pill-neg .dot { background: var(--sent-neg); }
+.sent-pill-neu .dot { background: var(--sent-neu); }
+.sent-badge-positive .dot { background: var(--sent-pos); }
+.sent-badge-negative .dot { background: var(--sent-neg); }
+.sent-badge-neutral  .dot { background: var(--sent-neu); }
+
+/* 카테고리 필터 chip 행 */
+.cat-chip-row { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 10px; }
+.cat-chip {
+    display: inline-flex; align-items: center;
+    font-size: 11px; font-weight: 500;
+    padding: 4px 10px; border-radius: 999px;
+    background: var(--surface); color: var(--ink-2);
+    border: 1px solid var(--line);
+    letter-spacing: -.003em;
+}
+.cat-chip-active {
+    background: var(--ink); color: var(--bg); border-color: var(--ink);
+}
 .sent-total { margin-left: auto; font-size: 11px; color: var(--ink-2); }
 
 /* 기사 카드 (카드 그리드) */
@@ -358,6 +387,9 @@ def _init_state() -> None:
     ss.setdefault("chat_history", [])  # [{role, content}]
     ss.setdefault("model_name", gemma_client.DEFAULT_MODEL)
     ss.setdefault("sentiment_filter", "all")   # all | positive | negative | neutral
+    ss.setdefault("sort_mode", "latest")        # latest | sentiment_strong | by_source
+    ss.setdefault("cat_filter", [])             # 카테고리 다중 선택 (빈 = 전체)
+    ss.setdefault("llm_boost_done", False)
     ss.setdefault("ollama_url", gemma_client.OLLAMA_BASE_URL)
     # LLM 백엔드 — Streamlit Cloud 호스트면 'groq' 기본, 로컬이면 'ollama'
     import os
@@ -373,7 +405,7 @@ _init_state()
 # 사이드바: 환경설정
 # ---------------------------------------------------------------------------
 with st.sidebar:
-    st.markdown("### ⚙️ 시스템 설정")
+    st.markdown("### 시스템 설정")
 
     # ---- LLM 백엔드 선택 ----
     backend_options = {
@@ -446,7 +478,7 @@ with st.sidebar:
             st.caption(f"`.streamlit/secrets.toml` 또는 Cloud 대시보드에 {secret_name} 추가하세요. README 참조.")
 
     st.markdown("---")
-    st.markdown("### 📡 데이터 소스")
+    st.markdown("### 데이터 소스")
 
     # 카테고리별 그룹 + checkbox. 기본: 한국어 소스 활성, 영문 비활성
     DEFAULT_ACTIVE = {
@@ -489,13 +521,13 @@ with st.sidebar:
         st.warning("최소 1개 소스를 선택하세요.")
 
     st.markdown("---")
-    st.markdown("### 🔍 수집 키워드 (Google News)")
+    st.markdown("### 수집 키워드 (Google News)")
     st.caption("아래 키워드 기반으로 Google News RSS에서 수집합니다. Geeknews는 사이트 자체 큐레이션 사용.")
     for kw in news_crawler.SEARCH_KEYWORDS:
         st.markdown(f"- {kw}")
 
     st.markdown("---")
-    refresh_clicked = st.button("🔄 지금 새로고침", use_container_width=True)
+    refresh_clicked = st.button("새로고침 ↻", use_container_width=True)
 
 
 # ---------------------------------------------------------------------------
@@ -504,7 +536,7 @@ with st.sidebar:
 st.markdown(
     """
     <div class="main-header">
-        <h1>📡 선행기구개발그룹 뉴스 레이더</h1>
+        <h1>선행기구개발그룹 뉴스 레이더</h1>
         <p>모바일 · 전기차 · 부품 / 신소재 트렌드를 Gemma 3로 실시간 분석합니다.</p>
     </div>
     """,
@@ -537,7 +569,7 @@ col_left, col_mid, col_right = st.columns([1.0, 1.2, 1.4], gap="medium")
 # 좌측: 실시간 뉴스 피드 (애니메이션)
 # ===========================================================================
 with col_left:
-    st.markdown("<div class='col-card'><h3>📰 기사 그리드</h3>", unsafe_allow_html=True)
+    st.markdown("<div class='col-card'><h3>기사 그리드</h3>", unsafe_allow_html=True)
 
     age = news_crawler.cache_age_seconds(st.session_state.get("sources"))
     if age is not None:
@@ -560,9 +592,9 @@ with col_left:
         # 통계 헤더
         st.markdown(
             f"""<div class='sent-stats'>
-                <span class='sent-pill sent-pill-pos'>🟢 긍정 {stats['positive']}</span>
-                <span class='sent-pill sent-pill-neg'>🔴 부정 {stats['negative']}</span>
-                <span class='sent-pill sent-pill-neu'>⚪ 중립 {stats['neutral']}</span>
+                <span class='sent-pill sent-pill-pos'><span class='dot'></span>긍정 {stats['positive']}</span>
+                <span class='sent-pill sent-pill-neg'><span class='dot'></span>부정 {stats['negative']}</span>
+                <span class='sent-pill sent-pill-neu'><span class='dot'></span>중립 {stats['neutral']}</span>
                 <span class='sent-total'>총 {stats['total']}건</span>
             </div>""",
             unsafe_allow_html=True,
@@ -585,11 +617,86 @@ with col_left:
         )
         st.session_state.sentiment_filter = sf_options[sel_label]
 
-        # 필터링
-        filtered = [
-            (i, a, s) for i, (a, s) in enumerate(zip(articles, sents))
-            if st.session_state.sentiment_filter == "all" or s.label == st.session_state.sentiment_filter
-        ]
+        # 카테고리 chip 필터 (다중 선택)
+        cat_options = list(news_crawler.CATEGORY_LABELS.values())
+        # 기사별 카테고리 매핑 (source_category 기반)
+        cat_label_by_key = news_crawler.CATEGORY_LABELS
+        article_cats = [cat_label_by_key.get(getattr(a, "source_category", "kw"), "") for a in articles]
+        present_cats = sorted(set(c for c in article_cats if c))
+        if present_cats:
+            with st.container():
+                st.caption("카테고리 (다중)")
+                cat_cols = st.columns(min(len(present_cats), 5))
+                for i, c in enumerate(present_cats):
+                    is_active = c in st.session_state.cat_filter
+                    label = c + (" ✓" if is_active else "")
+                    if cat_cols[i % len(cat_cols)].button(label, key=f"cat_{c}", use_container_width=True):
+                        if is_active:
+                            st.session_state.cat_filter.remove(c)
+                        else:
+                            st.session_state.cat_filter.append(c)
+                        st.rerun()
+
+        # 정렬 + LLM 보강 (한 줄)
+        sc1, sc2 = st.columns([2, 1])
+        sort_options = {
+            "최신순": "latest",
+            "Sentiment 강한순": "sentiment_strong",
+            "출처별": "by_source",
+        }
+        cur_sort_label = next((l for l, v in sort_options.items() if v == st.session_state.sort_mode), "최신순")
+        sel_sort = sc1.selectbox(
+            "정렬", list(sort_options.keys()),
+            index=list(sort_options.keys()).index(cur_sort_label),
+            label_visibility="collapsed",
+        )
+        st.session_state.sort_mode = sort_options[sel_sort]
+
+        # LLM 보강 버튼 (Groq/Gemini/Ollama 있고 회색지대 있을 때)
+        backend = st.session_state.get("llm_backend", "ollama")
+        api_key = st.session_state.get("llm_api_key", "")
+        can_boost = (backend == "ollama") or bool(api_key)
+        borderline_n = sum(1 for s in sents if abs(s.score) < 0.2)
+        if can_boost and borderline_n > 0 and not st.session_state.llm_boost_done:
+            if sc2.button(f"LLM 보강 ({borderline_n})", use_container_width=True,
+                          help="키워드 분류가 모호한 기사만 LLM으로 재분류"):
+                with st.spinner(f"LLM이 회색지대 {borderline_n}건 재분류 중..."):
+                    def _llm_call(messages):
+                        return gemma_client.chat(
+                            messages,
+                            backend=backend,
+                            model=st.session_state.model_name,
+                            base_url=st.session_state.ollama_url,
+                            api_key=api_key,
+                        )
+                    try:
+                        st.session_state.sentiments = sentiment_classifier.classify_with_llm(
+                            articles, sents, _llm_call
+                        )
+                        st.session_state.llm_boost_done = True
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"LLM 보강 실패: {e}")
+        elif st.session_state.llm_boost_done:
+            sc2.caption("LLM 보강 완료")
+
+        # 필터링 (sentiment + category)
+        filtered = []
+        for i, (a, s) in enumerate(zip(articles, sents)):
+            if st.session_state.sentiment_filter != "all" and s.label != st.session_state.sentiment_filter:
+                continue
+            if st.session_state.cat_filter:
+                a_cat = cat_label_by_key.get(getattr(a, "source_category", "kw"), "")
+                if a_cat not in st.session_state.cat_filter:
+                    continue
+            filtered.append((i, a, s))
+
+        # 정렬
+        if st.session_state.sort_mode == "sentiment_strong":
+            filtered.sort(key=lambda t: (-abs(t[2].score), -t[2].score))
+        elif st.session_state.sort_mode == "by_source":
+            filtered.sort(key=lambda t: (t[1].source or "", -t[2].score))
+        # latest: 이미 published_dt desc로 와있음
         st.caption(f"표시 중: {len(filtered)}건")
 
         # 카드 그리드 — 1열 좌측 컬럼이라 세로 stack, 카드별 select 버튼
@@ -604,7 +711,7 @@ with col_left:
             st.markdown(
                 f"""<div class='{card_class} {sent_class}' onclick='void(0)'>
                     <div class='art-card-head'>
-                        <span class='sent-badge sent-badge-{sent.label}'>{sent.emoji} {sent.label_ko}</span>
+                        <span class='sent-badge sent-badge-{sent.label}'><span class='dot'></span>{sent.label_ko}</span>
                         <span class='art-src'>{safe_src}</span>
                     </div>
                     <div class='art-title'>{safe_title}</div>
@@ -613,8 +720,25 @@ with col_left:
                 </div>""",
                 unsafe_allow_html=True,
             )
-            if st.button(f"선택", key=f"select_{idx}", use_container_width=True):
+            bcol1, bcol2 = st.columns([1, 1])
+            if bcol1.button("선택", key=f"select_{idx}", use_container_width=True):
                 st.session_state.selected_idx = idx
+                st.session_state[f"expand_{idx}"] = True
+            if bcol2.button("원문 ↗", key=f"open_{idx}", use_container_width=True):
+                pass  # 링크는 마크다운에서
+            if st.session_state.get(f"expand_{idx}"):
+                with st.expander("상세 보기", expanded=True):
+                    st.markdown(f"**원문:** [{html.escape(art.link[:70])}]({html.escape(art.link)})")
+                    if art.summary_raw:
+                        st.markdown("**요약 (RSS 원문):**")
+                        st.write(art.summary_raw[:500])
+                    pos = sent.pos_hits
+                    neg = sent.neg_hits
+                    if pos or neg:
+                        st.caption(f"매칭 키워드 — 긍정: {', '.join(pos) if pos else '—'} / 부정: {', '.join(neg) if neg else '—'}")
+                    if st.button("접기", key=f"collapse_{idx}"):
+                        st.session_state[f"expand_{idx}"] = False
+                        st.rerun()
 
     st.markdown("</div>", unsafe_allow_html=True)
 
@@ -624,7 +748,7 @@ with col_left:
 # ===========================================================================
 with col_mid:
     st.markdown(
-        "<div class='col-card'><h3>🤖 Gemma 3 컨트롤러</h3>",
+        "<div class='col-card'><h3>LLM 컨트롤러</h3>",
         unsafe_allow_html=True,
     )
     st.caption(
@@ -634,9 +758,9 @@ with col_mid:
 
     quick_cols = st.columns(3)
     quick_prompts = {
-        "🔧 구조 분석": "선택한 기사 또는 최신 기사 흐름을 바탕으로 메커니즘 구조 관점에서 분석해줘.",
-        "🧪 소재 분석": "소재(합금, 복합재, 폴리머) 관점으로 비교 분석해줘. 등급/규격 포함.",
-        "⚙️ 공법 비교": "다이캐스팅 / MIM / 사출 / 프레스 / 본딩 등 공법 관점에서 장단점을 표로 정리해줘.",
+        "구조 분석": "선택한 기사 또는 최신 기사 흐름을 바탕으로 메커니즘 구조 관점에서 분석해줘.",
+        "소재 분석": "소재(합금, 복합재, 폴리머) 관점으로 비교 분석해줘. 등급/규격 포함.",
+        "공법 비교": "다이캐스팅 / MIM / 사출 / 프레스 / 본딩 등 공법 관점에서 장단점을 표로 정리해줘.",
     }
     pending_prompt: str | None = None
     for col, (label, prompt) in zip(quick_cols, quick_prompts.items()):
@@ -709,13 +833,13 @@ with col_mid:
                         placeholder.markdown(acc + "▌")
                     placeholder.markdown(acc or "_(응답 없음)_")
                 except gemma_client.LLMError as exc:
-                    acc = f"⚠️ {exc}"
+                    acc = f"오류: {exc}"
                     placeholder.error(acc)
 
         st.session_state.chat_history.append({"role": "assistant", "content": acc})
 
     if st.session_state.chat_history:
-        if st.button("🗑️ 대화 초기화", key="clear_chat"):
+        if st.button("대화 초기화", key="clear_chat"):
             st.session_state.chat_history = []
             st.rerun()
 
@@ -727,7 +851,7 @@ with col_mid:
 # ===========================================================================
 with col_right:
     st.markdown(
-        "<div class='col-card'><h3>📑 요약 & PPT 리포트</h3>",
+        "<div class='col-card'><h3>요약 · PPT 리포트</h3>",
         unsafe_allow_html=True,
     )
 
@@ -748,7 +872,7 @@ with col_right:
 
         col_a, col_b = st.columns(2)
         with col_a:
-            if st.button("🧠 Gemma 3로 요약 생성", use_container_width=True):
+            if st.button("LLM 요약 생성", use_container_width=True):
                 with st.spinner("기사 본문을 가져오는 중..."):
                     body = news_crawler.fetch_article_body(article.link)
                 with st.spinner("Gemma 3가 분석 중입니다..."):
@@ -766,7 +890,7 @@ with col_right:
                         st.error(str(exc))
 
         with col_b:
-            if st.button("🧹 요약 초기화", use_container_width=True):
+            if st.button("요약 초기화", use_container_width=True):
                 st.session_state.summary = ""
                 st.rerun()
 
