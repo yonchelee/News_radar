@@ -1103,7 +1103,7 @@ else:
             if len(out) >= top_n:
                 break
             out.append((tok, "pos"))
-        return out[:top_n], pos_c.total() + neg_c.total()
+        return out[:top_n], sum(pos_c.values()) + sum(neg_c.values())
 
     def _status_icon_html(pos_pct, neg_pct, scale="comp"):
         prefix = scale  # "comp" or "hero"
