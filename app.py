@@ -17,6 +17,7 @@ import gemma_client
 import news_crawler
 import sentiment_classifier
 import company_extractor
+import top_of_mind
 from ppt_generator import build_pptx
 
 
@@ -518,6 +519,73 @@ code {
 .art-title a { color: inherit; text-decoration: none; }
 .art-title a:hover { color: var(--accent); text-decoration: underline; }
 
+
+/* === 오늘 주목 (Top of Mind) === */
+.tom-section-head {
+    display: flex; align-items: baseline; justify-content: space-between;
+    margin: 6px 0 12px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--line-soft);
+}
+.tom-section-head h2 {
+    margin: 0;
+    font-size: 18px; font-weight: 700;
+    letter-spacing: -.012em; color: var(--ink);
+}
+.tom-section-head h2::before {
+    content: ""; display: inline-block;
+    width: 4px; height: 16px;
+    background: var(--accent);
+    margin-right: 8px; vertical-align: -2px;
+    border-radius: 2px;
+}
+.tom-sub {
+    font-size: 11.5px; color: var(--ink-3);
+    letter-spacing: -.003em;
+}
+
+.tom-card {
+    background: var(--bg);
+    border: 1px solid var(--line);
+    border-left: 4px solid var(--ink-3);
+    border-radius: 8px;
+    padding: 12px 14px;
+    margin: 4px 0;
+    transition: background 120ms, box-shadow 120ms;
+    min-height: 92px;
+}
+.tom-card:hover {
+    background: var(--surface-2);
+    box-shadow: 0 2px 8px rgba(0,0,0,.06);
+}
+.tom-card-warning { border-left-color: var(--sent-neg); }
+.tom-card-info    { border-left-color: #0071e3; }
+.tom-card-event   { border-left-color: var(--accent); }
+.tom-card-volume  { border-left-color: #ff9500; }
+
+.tom-reason {
+    font-size: 10.5px; font-weight: 600;
+    text-transform: uppercase; letter-spacing: .05em;
+    color: var(--ink-2);
+    margin-bottom: 4px;
+}
+.tom-card-warning .tom-reason { color: var(--sent-neg); }
+.tom-card-info    .tom-reason { color: #0071e3; }
+.tom-card-event   .tom-reason { color: var(--accent); }
+.tom-card-volume  .tom-reason { color: #d97000; }
+
+.tom-company {
+    font-size: 16px; font-weight: 700;
+    letter-spacing: -.012em; color: var(--ink);
+    line-height: 1.2;
+    margin-bottom: 4px;
+}
+.tom-detail {
+    font-size: 12px; color: var(--ink-2);
+    letter-spacing: -.003em;
+    line-height: 1.4;
+}
+
 </style>
 """
 st.markdown(GLOBAL_CSS, unsafe_allow_html=True)
@@ -714,6 +782,25 @@ else:
     for i, (art, s) in enumerate(zip(articles, sents)):
         for cname in company_extractor.extract_companies(art.title, art.summary_raw):
             company_articles.setdefault(cname, []).append((i, art, s))
+
+    # === 오늘 주목 (Top of Mind) — 자동 큐레이션 ===
+    highlights = top_of_mind.compute_top_of_mind(company_articles, limit=5)
+    if highlights:
+        st.markdown("<div class='tom-section-head'><h2>오늘 주목</h2><span class='tom-sub'>자동 큐레이션 · 부정 집중 · 다중 매체 · 주요 이벤트</span></div>", unsafe_allow_html=True)
+        tom_cols = st.columns(len(highlights), gap="small")
+        for col, h in zip(tom_cols, highlights):
+            col.markdown(
+                f"""<div class='tom-card tom-card-{h.type}'>
+                    <div class='tom-reason'>{html.escape(h.reason)}</div>
+                    <div class='tom-company'>{html.escape(h.company)}</div>
+                    <div class='tom-detail'>{html.escape(h.detail)}</div>
+                </div>""",
+                unsafe_allow_html=True,
+            )
+            if col.button("상세", key=f"tom_{h.company}", use_container_width=True):
+                st.session_state.selected_company = h.company
+                st.rerun()
+        st.markdown("<div style='height:18px'></div>", unsafe_allow_html=True)
 
     # 카테고리 chip 필터 (기업 카테고리)
     cat_keys_present = sorted({
