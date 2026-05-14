@@ -32,6 +32,8 @@ st.set_page_config(
 GLOBAL_CSS = """
 <style>
 /* Apple Compare 디자인 톤 매핑 — News_radar */
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 :root {
     --bg: #ffffff;
     --surface: #f5f5f7;
@@ -55,8 +57,9 @@ GLOBAL_CSS = """
 
 /* 베이스 폰트 — SF Pro Display/Text + 한글 폴백 */
 html, body, [class*="css"]  {
-    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text",
-                 "Pretendard", "Apple SD Gothic Neo", system-ui, sans-serif !important;
+    font-family: "Inter", "Noto Sans KR", -apple-system, BlinkMacSystemFont,
+                 "SF Pro Display", "SF Pro Text", "Pretendard",
+                 "Apple SD Gothic Neo", "Nanum Gothic", system-ui, sans-serif !important;
     -webkit-font-smoothing: antialiased;
     letter-spacing: -.005em;
     color: var(--ink);
