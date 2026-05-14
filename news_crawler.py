@@ -106,6 +106,25 @@ SOURCES: dict[str, Source] = {
     "36kr":        Source("36kr", "36Kr", "https://www.36kr.com/feed", "cn", "zh"),
     "sspai":       Source("sspai", "少数派 (sspai)", "https://sspai.com/feed", "cn", "zh"),
     "geekpark":    Source("geekpark", "GeekPark", "https://www.geekpark.net/rss", "cn", "zh"),
+
+    # --- US 메이저 미디어 (비즈니스/테크 핵심, apply_filter=False) ---
+    "bloomberg_tech":     Source("bloomberg_tech", "Bloomberg Technology", "https://feeds.bloomberg.com/technology/news.rss", "us-major", "en"),
+    "bloomberg_business": Source("bloomberg_business", "Bloomberg Business", "https://feeds.bloomberg.com/business/news.rss", "us-major", "en"),
+    "bloomberg_markets":  Source("bloomberg_markets", "Bloomberg Markets", "https://feeds.bloomberg.com/markets/news.rss", "us-major", "en"),
+    "wsj_tech":           Source("wsj_tech", "WSJ Tech", "https://feeds.a.dj.com/rss/RSSWSJD.xml", "us-major", "en"),
+    "wsj_world":          Source("wsj_world", "WSJ World", "https://feeds.a.dj.com/rss/RSSWorldNews.xml", "us-major", "en"),
+    "bbc_business":       Source("bbc_business", "BBC Business", "http://feeds.bbci.co.uk/news/business/rss.xml", "us-major", "en"),
+    "bbc_tech":           Source("bbc_tech", "BBC Technology", "http://feeds.bbci.co.uk/news/technology/rss.xml", "us-major", "en"),
+    "cnn_business":       Source("cnn_business", "CNN Business", "http://rss.cnn.com/rss/money_news_international.rss", "us-major", "en"),
+    "cnbc_tech":          Source("cnbc_tech", "CNBC Tech", "https://www.cnbc.com/id/19854910/device/rss/rss.html", "us-major", "en"),
+    "cnbc_business":      Source("cnbc_business", "CNBC Business", "https://www.cnbc.com/id/10001147/device/rss/rss.html", "us-major", "en"),
+    "nyt_tech":           Source("nyt_tech", "NYT Technology", "https://rss.nytimes.com/services/xml/rss/nyt/Technology.xml", "us-major", "en"),
+    "nyt_business":       Source("nyt_business", "NYT Business", "https://rss.nytimes.com/services/xml/rss/nyt/Business.xml", "us-major", "en"),
+    "ft_tech":            Source("ft_tech", "Financial Times Tech", "https://www.ft.com/technology?format=rss", "us-major", "en"),
+    "forbes_innov":       Source("forbes_innov", "Forbes Innovation", "https://www.forbes.com/innovation/feed/", "us-major", "en", True),
+    "mit_tech":           Source("mit_tech", "MIT Technology Review", "https://www.technologyreview.com/feed/", "us-major", "en"),
+    "wired":              Source("wired", "Wired", "https://www.wired.com/feed/rss", "us-major", "en", True),
+    "wapo_tech":          Source("wapo_tech", "Washington Post Tech", "https://feeds.washingtonpost.com/rss/business/technology", "us-major", "en"),
 }
 
 CATEGORY_LABELS = {
@@ -117,6 +136,7 @@ CATEGORY_LABELS = {
     "kr-it":        "국내 IT",
     "kr-component": "부품·소재",
     "cn":           "중화권 IT",
+    "us-major":     "메이저 미디어",
 }
 
 GOOGLE_NEWS_RSS = "https://news.google.com/rss/search?q={query}&hl=ko&gl=KR&ceid=KR:ko"

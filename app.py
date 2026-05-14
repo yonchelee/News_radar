@@ -530,9 +530,14 @@ def _init_state() -> None:
     ss = st.session_state
     ss.setdefault("articles", [])
     ss.setdefault("sources", [
+        # 한국어 기본 (8)
         "google", "geeknews",
         "zdnetkr", "ddaily", "venturesquare",
         "thelec", "irobotnews", "epnc",
+        # 미국 메이저 비즈니스/테크 (5 — 기업 sentiment 핵심)
+        "bloomberg_business", "bloomberg_tech",
+        "bbc_business", "cnbc_business",
+        "nyt_business",
     ])
     ss.setdefault("selected_idx", None)
     ss.setdefault("summary", "")
@@ -595,6 +600,9 @@ with st.sidebar:
         "google", "geeknews",
         "zdnetkr", "ddaily", "venturesquare",
         "thelec", "irobotnews", "epnc",
+        "bloomberg_business", "bloomberg_tech",
+        "bbc_business", "cnbc_business",
+        "nyt_business",
     }
 
     if "sources" not in st.session_state or not isinstance(st.session_state.sources, list):
