@@ -15,6 +15,38 @@ News_radar/
 └── requirements.txt
 ```
 
+## 🔑 LLM 엔진 설정 (Streamlit Cloud)
+
+3가지 백엔드 지원. Streamlit Cloud에서 동작하려면 **Groq** 또는 **Gemini** 필요 (로컬 Ollama는 컨테이너 외부 접근 불가).
+
+### Groq (권장, 무료 티어)
+
+1. https://console.groq.com/keys 에서 API 키 발급 (`gsk_...`)
+2. Streamlit Cloud 대시보드 → 앱 → **App settings** → **Secrets**:
+   ```toml
+   GROQ_API_KEY = "gsk_..."
+   ```
+3. Save → 자동 재시작 → 사이드바 라디오에서 "Groq" 선택
+
+### Gemini (대안, 무료 티어)
+
+1. https://aistudio.google.com/apikey 에서 키 발급 (`AIza...`)
+2. Streamlit secrets에 `GEMINI_API_KEY = "AIza..."`
+3. 사이드바에서 "Gemini" 선택
+
+### 로컬 Ollama (개발/테스트용)
+
+```bash
+ollama serve
+ollama pull gemma3
+```
+
+사이드바에서 "Ollama" 선택 + Endpoint `http://localhost:11434` 입력.
+
+### 로컬 개발 시 시크릿
+
+`.streamlit/secrets.toml.example` 을 `.streamlit/secrets.toml` 로 복사 후 키 입력. `.gitignore`에 등록되어 있어 커밋 안 됨.
+
 ## ⚙️ 사전 요구사항
 
 1) **Ollama** 설치 후 Gemma 3 모델 풀

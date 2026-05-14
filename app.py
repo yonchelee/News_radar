@@ -257,6 +257,10 @@ def _init_state() -> None:
     ss.setdefault("chat_history", [])  # [{role, content}]
     ss.setdefault("model_name", gemma_client.DEFAULT_MODEL)
     ss.setdefault("ollama_url", gemma_client.OLLAMA_BASE_URL)
+    # LLM 백엔드 — Streamlit Cloud 호스트면 'groq' 기본, 로컬이면 'ollama'
+    import os
+    default_backend = "groq" if os.environ.get("STREAMLIT_SHARING") or os.environ.get("HOSTNAME","").startswith("streamlit") else "ollama"
+    ss.setdefault("llm_backend", default_backend)
     ss.setdefault("last_refresh", None)
 
 
@@ -269,40 +273,75 @@ _init_state()
 with st.sidebar:
     st.markdown("### ⚙️ 시스템 설정")
 
-    st.session_state.ollama_url = st.text_input(
-        "Ollama Endpoint",
-        value=st.session_state.ollama_url,
-        help="로컬 Ollama 서버 주소",
+    # ---- LLM 백엔드 선택 ----
+    backend_options = {
+        "Groq (Cloud, llama-3.3-70b)": "groq",
+        "Gemini (Cloud, 2.0 Flash)":    "gemini",
+        "Ollama (로컬, Gemma 3)":       "ollama",
+    }
+    current_label = next(
+        (l for l, k in backend_options.items() if k == st.session_state.llm_backend),
+        list(backend_options.keys())[0]
     )
+    selected = st.radio(
+        "LLM 엔진",
+        list(backend_options.keys()),
+        index=list(backend_options.keys()).index(current_label),
+        help="Streamlit Cloud에서는 Groq/Gemini 권장. 영채님 PC에서 로컬 테스트는 Ollama.",
+    )
+    st.session_state.llm_backend = backend_options[selected]
+    backend = st.session_state.llm_backend
 
-    available = gemma_client.is_available(st.session_state.ollama_url)
-    if available:
-        st.markdown(
-            "<span class='status-pill status-ok'>● Ollama 연결됨</span>",
-            unsafe_allow_html=True,
+    # ---- 백엔드별 설정 ----
+    if backend == "ollama":
+        st.session_state.ollama_url = st.text_input(
+            "Ollama Endpoint",
+            value=st.session_state.ollama_url,
+            help="로컬 Ollama 서버 주소",
         )
-        models = gemma_client.list_models(st.session_state.ollama_url)
-        gemma_models = [m for m in models if "gemma" in m.lower()] or models
-        if gemma_models:
-            default_idx = (
-                gemma_models.index(st.session_state.model_name)
-                if st.session_state.model_name in gemma_models
-                else 0
-            )
-            st.session_state.model_name = st.selectbox(
-                "모델 선택", gemma_models, index=default_idx
-            )
+        available = gemma_client.is_available("ollama", base_url=st.session_state.ollama_url)
+        if available:
+            st.markdown("<span class='status-pill status-ok'>● Ollama 연결됨</span>", unsafe_allow_html=True)
+            models = gemma_client.list_models("ollama", base_url=st.session_state.ollama_url)
+            gemma_models = [m for m in models if "gemma" in m.lower()] or models
+            if gemma_models:
+                idx = gemma_models.index(st.session_state.model_name) if st.session_state.model_name in gemma_models else 0
+                st.session_state.model_name = st.selectbox("모델 선택", gemma_models, index=idx)
+            else:
+                st.warning("설치된 모델 없음. `ollama pull gemma3` 실행 필요.")
         else:
-            st.warning("설치된 모델이 없습니다. `ollama pull gemma3` 실행 필요.")
+            st.markdown("<span class='status-pill status-bad'>● Ollama 연결 실패</span>", unsafe_allow_html=True)
+            st.caption("`ollama serve` 가 11434 포트에서 실행 중인지 확인. Streamlit Cloud에선 Groq/Gemini 사용 권장.")
+            st.session_state.model_name = st.text_input("모델 이름", value=st.session_state.model_name)
+        st.session_state.llm_api_key = ""
     else:
-        st.markdown(
-            "<span class='status-pill status-bad'>● Ollama 연결 실패</span>",
-            unsafe_allow_html=True,
-        )
-        st.caption("`ollama serve` 가 11434 포트에서 실행 중인지 확인하세요.")
-        st.session_state.model_name = st.text_input(
-            "모델 이름", value=st.session_state.model_name
-        )
+        # Groq / Gemini
+        secret_name = "GROQ_API_KEY" if backend == "groq" else "GEMINI_API_KEY"
+        api_key = ""
+        try:
+            api_key = st.secrets.get(secret_name, "") or ""
+        except Exception:
+            pass
+        if not api_key:
+            # 사용자가 직접 입력 가능 (개발용)
+            api_key = st.text_input(
+                f"{secret_name} (또는 Streamlit secrets에 추가)",
+                type="password",
+                value="",
+                help=f"Streamlit Cloud 대시보드 → App Settings → Secrets 에 '{secret_name} = ...' 추가 권장.",
+            )
+        st.session_state.llm_api_key = api_key
+        if api_key:
+            st.markdown(f"<span class='status-pill status-ok'>● {backend.title()} 연결 준비</span>", unsafe_allow_html=True)
+            models = gemma_client.list_models(backend)
+            default_model = gemma_client.GROQ_DEFAULT_MODEL if backend == "groq" else gemma_client.GEMINI_DEFAULT_MODEL
+            if st.session_state.model_name not in models:
+                st.session_state.model_name = default_model
+            idx = models.index(st.session_state.model_name) if st.session_state.model_name in models else 0
+            st.session_state.model_name = st.selectbox("모델 선택", models, index=idx)
+        else:
+            st.markdown(f"<span class='status-pill status-bad'>● {backend.title()} API 키 미설정</span>", unsafe_allow_html=True)
+            st.caption(f"`.streamlit/secrets.toml` 또는 Cloud 대시보드에 {secret_name} 추가하세요. README 참조.")
 
     st.markdown("---")
     st.markdown("### 📡 데이터 소스")
@@ -511,15 +550,26 @@ with col_mid:
                 placeholder = st.empty()
                 acc = ""
                 try:
-                    for tok in gemma_client.chat_stream(
-                        api_messages,
-                        model=st.session_state.model_name,
-                        base_url=st.session_state.ollama_url,
-                    ):
+                    # 스트리밍은 Ollama만 지원. Groq/Gemini는 일반 chat (한 번에 응답)
+                    if st.session_state.llm_backend == "ollama":
+                        chunks_iter = gemma_client.chat_stream(
+                            api_messages,
+                            model=st.session_state.model_name,
+                            base_url=st.session_state.ollama_url,
+                        )
+                    else:
+                        full = gemma_client.chat(
+                            api_messages,
+                            backend=st.session_state.llm_backend,
+                            model=st.session_state.model_name,
+                            api_key=st.session_state.get("llm_api_key", ""),
+                        )
+                        chunks_iter = iter([full])
+                    for tok in chunks_iter:
                         acc += tok
                         placeholder.markdown(acc + "▌")
                     placeholder.markdown(acc or "_(응답 없음)_")
-                except gemma_client.OllamaError as exc:
+                except gemma_client.LLMError as exc:
                     acc = f"⚠️ {exc}"
                     placeholder.error(acc)
 
@@ -565,13 +615,15 @@ with col_right:
                 with st.spinner("Gemma 3가 분석 중입니다..."):
                     try:
                         summary = gemma_client.summarize_article(
-                            article.title,
-                            body,
+                            title=selected_article.title,
+                            body=body_text,
+                            backend=st.session_state.llm_backend,
                             model=st.session_state.model_name,
-                            extra_instruction=extra or "",
+                            base_url=st.session_state.ollama_url,
+                            api_key=st.session_state.get("llm_api_key", ""),
                         )
                         st.session_state.summary = summary
-                    except gemma_client.OllamaError as exc:
+                    except gemma_client.LLMError as exc:
                         st.error(str(exc))
 
         with col_b:
@@ -614,5 +666,5 @@ st.markdown("---")
 st.caption(
     "© 선행기구개발그룹 뉴스 레이더 · "
     f"모델: {st.session_state.model_name} · "
-    f"엔드포인트: {st.session_state.ollama_url}"
+    f"엔진: {st.session_state.llm_backend}" + (f" · {st.session_state.ollama_url}" if st.session_state.llm_backend == "ollama" else "")
 )
