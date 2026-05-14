@@ -17,7 +17,8 @@ class Company:
     aliases: list[str]
     category: str
     category_label: str = ""
-    country: str = ""    # korea | us | china | japan | europe | taiwan
+    country: str = ""
+    industries: tuple[str, ...] = ()
 
 
 # ---------------------------------------------------------------------------
@@ -121,6 +122,110 @@ for _c in COMPANIES:
 
 # 빠른 lookup용
 COMPANY_BY_NAME: dict[str, Company] = {c.name: c for c in COMPANIES}
+# 회사별 실제 영위 산업 (modal 매핑 — 회사 사업 기준)
+# 가능한 산업: mobile, ai, robot, ev, auto, semi, battery, display, wearable,
+#              telecom, internet, cloud, materials, appliance, gaming, camera,
+#              audio, pc, software, supply, tablet, tv
+_INDUSTRIES: dict[str, tuple[str, ...]] = {
+    # 한국 테크
+    "Samsung":     ("mobile", "semi", "display", "wearable", "appliance"),
+    "LG":          ("display", "battery", "appliance"),         # mobile 사업 철수 (2021)
+    "SK Hynix":    ("semi",),
+    "SK":          ("battery", "telecom"),
+    "Naver":       ("ai", "internet"),
+    "Kakao":       ("ai", "internet"),
+    # 한국 자동차
+    "Hyundai":     ("auto", "ev", "robot"),                    # Boston Dynamics
+    "Kia":         ("auto", "ev"),
+    # 한국 소재
+    "POSCO":       ("materials", "battery"),
+    # 글로벌 테크
+    "Apple":       ("mobile", "ai", "wearable", "pc", "tablet"),
+    "Google":      ("ai", "mobile", "internet", "cloud"),
+    "Microsoft":   ("ai", "software", "cloud", "gaming"),
+    "Meta":        ("ai", "internet", "wearable"),             # Quest VR
+    "Amazon":      ("ai", "internet", "cloud"),
+    "Nvidia":      ("ai", "semi"),
+    "Qualcomm":    ("mobile", "semi", "ai"),
+    "Intel":       ("semi", "ai"),
+    "AMD":         ("semi", "ai"),
+    "ARM":         ("semi",),
+    "Motorola":    ("mobile",),
+    "Nokia":       ("telecom",),
+    "Asus":        ("mobile", "pc"),
+    # 중국 테크/모바일
+    "Xiaomi":      ("mobile", "ev", "appliance", "wearable"),
+    "Huawei":      ("mobile", "telecom", "semi"),
+    "OPPO":        ("mobile",),
+    "Vivo":        ("mobile",),
+    "OnePlus":     ("mobile",),
+    "Honor":       ("mobile",),
+    "Lenovo":      ("pc", "mobile"),
+    # 중국 자동차/배터리
+    "BYD":         ("ev", "battery"),
+    "NIO":         ("ev",),
+    "Xpeng":       ("ev",),
+    "CATL":        ("battery",),
+    # 글로벌 자동차
+    "Tesla":       ("ev", "ai", "robot"),                      # Optimus
+    "Ford":        ("auto", "ev"),
+    "GM":          ("auto", "ev"),
+    "Rivian":      ("ev",),
+    "Lucid":       ("ev",),
+    "BMW":         ("auto", "ev"),
+    "Mercedes":    ("auto", "ev"),
+    "Volkswagen":  ("auto", "ev"),
+    # 일본
+    "Sony":        ("camera", "gaming", "audio"),              # Xperia 매우 미미
+    "Toyota":      ("auto", "ev"),
+    "Panasonic":   ("battery", "appliance"),
+    "Honda":       ("auto", "robot"),                          # ASIMO
+    # 반도체/공급망
+    "TSMC":        ("semi",),
+    "ASML":        ("semi",),
+    "Foxconn":     ("supply", "ev"),
+    "Pegatron":    ("supply",),
+}
+
+# Companies 에 산업 부여
+for _c in COMPANIES:
+    _c.industries = _INDUSTRIES.get(_c.name, ())
+
+INDUSTRY_LABELS: dict[str, str] = {
+    "mobile":    "모바일",
+    "ai":        "AI",
+    "robot":     "로봇",
+    "ev":        "전기차",
+    "auto":      "자동차",
+    "semi":      "반도체",
+    "battery":   "배터리",
+    "display":   "디스플레이",
+    "wearable":  "웨어러블",
+    "telecom":   "통신장비",
+    "internet":  "인터넷",
+    "cloud":     "클라우드",
+    "materials": "소재",
+    "appliance": "가전",
+    "gaming":    "게이밍",
+    "camera":    "카메라",
+    "audio":     "오디오",
+    "pc":        "PC",
+    "software":  "소프트웨어",
+    "supply":    "공급망",
+    "tablet":    "태블릿",
+    "tv":        "TV",
+}
+
+
+def industries_of(name: str) -> tuple[str, ...]:
+    c = COMPANY_BY_NAME.get(name)
+    return c.industries if c else ()
+
+
+def industry_labels(name: str) -> list[str]:
+    return [INDUSTRY_LABELS.get(i, i) for i in industries_of(name)]
+
+
 
 def country_of(name: str) -> str:
     c = COMPANY_BY_NAME.get(name)

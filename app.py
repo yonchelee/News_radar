@@ -596,6 +596,17 @@ code {
     margin: 10px 0 6px;
 }
 
+
+/* 회사 카드 산업 chip */
+.comp-inds { display: flex; flex-wrap: wrap; gap: 4px; margin: 6px 0 8px; }
+.comp-ind-chip {
+    display: inline-block;
+    font-size: 10px; font-weight: 500;
+    padding: 2px 7px; border-radius: 999px;
+    background: var(--surface); color: var(--ink-2);
+    letter-spacing: -.003em;
+}
+
 </style>
 """
 st.markdown(GLOBAL_CSS, unsafe_allow_html=True)
@@ -765,24 +776,16 @@ else:
     st.session_state.topic_filter = TOPIC_OPTIONS[sel_topic]
     selected_topic = st.session_state.topic_filter
 
-    # 대분류 적용 — 기사별 topic 캐시
-    if "article_topics" not in st.session_state or len(st.session_state.article_topics) != len(articles):
-        st.session_state.article_topics = [
-            topic_classifier.classify_topic(a.title, a.summary_raw) for a in articles
-        ]
-    article_topics = st.session_state.article_topics
-
+    # 대분류 적용 — 회사 industries 기준 (회사 사업 영위로 필터)
+    # 'mobile' / 'ai' / 'robot' 산업을 가진 회사만 통과
+    # 회사 카드 노출은 회사 단위. 기사 단위 topic 매칭은 보조 (배지 표시용)
     if selected_topic != "all":
-        filtered_article_idxs = {i for i, t in enumerate(article_topics) if selected_topic in t}
+        company_articles_filtered = {
+            cname: arr for cname, arr in company_articles.items()
+            if selected_topic in company_extractor.industries_of(cname)
+        }
     else:
-        filtered_article_idxs = set(range(len(articles)))
-
-    # company_articles 를 대분류로 재필터링
-    company_articles_filtered: dict = {}
-    for cname, arr in company_articles.items():
-        kept = [(i, a, s) for (i, a, s) in arr if i in filtered_article_idxs]
-        if kept:
-            company_articles_filtered[cname] = kept
+        company_articles_filtered = dict(company_articles)
 
     # 중분류 (country) — 다중 선택 chip
     countries_present = sorted({
@@ -925,10 +928,13 @@ else:
                 sel_class = " comp-card-selected" if is_sel else ""
                 # neg 비율 높으면 카드 좌측 strip 빨강, 긍정 비율 높으면 초록
                 strip = "neg" if neg_ratio >= 0.35 else ("pos" if pos / max(total,1) >= 0.5 else "neu")
+                ind_lbls = company_extractor.industry_labels(cname)[:3]
+                ind_chips = "".join(f"<span class='comp-ind-chip'>{html.escape(l)}</span>" for l in ind_lbls)
                 col.markdown(
                     f"""<div class='comp-card comp-strip-{strip}{sel_class}'>
                         <div class='comp-name'>{html.escape(cname)}</div>
                         <div class='comp-cat'>{html.escape(cat_lbl)}</div>
+                        <div class='comp-inds'>{ind_chips}</div>
                         <div class='comp-ratio'>
                             <div class='r-pos' style='width:{pos_pct}%'></div>
                             <div class='r-neg' style='width:{neg_pct}%'></div>
