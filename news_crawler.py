@@ -139,10 +139,15 @@ class Article:
 
     @property
     def published_dt(self) -> datetime:
+        """파싱된 datetime을 항상 timezone-aware UTC로 반환 (정렬 호환)."""
         for fmt in ("%a, %d %b %Y %H:%M:%S %Z", "%a, %d %b %Y %H:%M:%S %z",
                     "%Y-%m-%dT%H:%M:%S%z", "%Y-%m-%dT%H:%M:%SZ"):
             try:
-                return datetime.strptime(self.published, fmt)
+                dt = datetime.strptime(self.published, fmt)
+                # naive → UTC aware로 보정
+                if dt.tzinfo is None:
+                    dt = dt.replace(tzinfo=timezone.utc)
+                return dt
             except Exception:
                 continue
         return datetime.now(tz=timezone.utc)
