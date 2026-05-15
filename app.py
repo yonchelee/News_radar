@@ -40,24 +40,26 @@ GLOBAL_CSS = """
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700;800&display=swap');
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 :root {
-    --bg: #ffffff;
-    --surface: #f7f7f7;
-    --surface-2: #fafafa;
-    --ink: #1d1d1f;
-    --ink-2: #555555;
-    --ink-3: #8a8a8a;
-    --line: #e5e5e5;
-    --line-soft: rgba(0,0,0,.05);
-    --accent: #03C75A;          /* 네이버 그린 */
-    --accent-dark: #02b350;
-    --accent-link: #06c;
-    --ok-bg: #e8f9ed;
-    --ok-ink: #1a8a36;
-    --bad-bg: #fdebeb;
-    --bad-ink: #c43e3e;
-    --ls-tight: -0.022em;
-    --ls-wide: .04em;
-    --radius: 12px;
+    --bg: #f5f7fb;
+    --surface: #ffffff;
+    --surface-2: #f8fafc;
+    --ink: #111827;
+    --ink-2: #475569;
+    --ink-3: #7b8794;
+    --line: #dbe3ef;
+    --line-soft: rgba(15,23,42,.07);
+    --accent: #0f766e;
+    --accent-dark: #115e59;
+    --accent-link: #2563eb;
+    --ok-bg: #e7f6ef;
+    --ok-ink: #137a3f;
+    --bad-bg: #fff1f2;
+    --bad-ink: #be123c;
+    --warn-bg: #fff7ed;
+    --warn-ink: #b45309;
+    --ls-tight: 0;
+    --ls-wide: 0;
+    --radius: 8px;
     --radius-s: 8px;
 }
 
@@ -67,7 +69,7 @@ html, body, [class*="css"]  {
                  "SF Pro Display", "SF Pro Text", "Pretendard",
                  "Apple SD Gothic Neo", "Nanum Gothic", system-ui, sans-serif !important;
     -webkit-font-smoothing: antialiased;
-    letter-spacing: -.005em;
+    letter-spacing: 0;
     color: var(--ink);
 }
 
@@ -746,6 +748,225 @@ code {
     border: 1px solid var(--line);
 }
 
+/* === 2026 UI refresh: operational news room === */
+.stApp {
+    background:
+        linear-gradient(180deg, rgba(15,118,110,.09), rgba(245,247,251,0) 260px),
+        var(--bg);
+}
+[data-testid="stHeader"] {
+    background: rgba(245,247,251,.86);
+    backdrop-filter: blur(16px);
+    border-bottom: 1px solid rgba(219,227,239,.75);
+}
+.block-container {
+    max-width: 1360px;
+    padding-top: 1.6rem;
+    padding-bottom: 3rem;
+}
+* {
+    letter-spacing: 0 !important;
+}
+.main-header {
+    background: rgba(255,255,255,.88);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 20px 22px;
+    box-shadow: 0 18px 42px rgba(15,23,42,.07);
+}
+.main-header h1 {
+    font-size: 28px;
+    font-weight: 800;
+}
+.main-header h1::before {
+    width: 5px;
+    height: 23px;
+    background: linear-gradient(180deg, var(--accent), #d97706);
+}
+.main-header .hdr-sub {
+    font-size: 13px;
+    color: var(--ink-2);
+}
+.lang-toggle,
+.llm-pill {
+    border: 1px solid var(--line);
+    box-shadow: 0 6px 18px rgba(15,23,42,.05);
+}
+.llm-pill {
+    background: #12343b;
+}
+.llm-pill-off {
+    background: var(--ink-3);
+}
+.lang-pill-active {
+    background: var(--accent);
+}
+.radar-summary {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 10px;
+    margin: 14px 0 18px;
+}
+.radar-kpi {
+    background: rgba(255,255,255,.9);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 14px 16px;
+    box-shadow: 0 10px 28px rgba(15,23,42,.05);
+}
+.radar-kpi .k-label {
+    display: block;
+    color: var(--ink-3);
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+}
+.radar-kpi .k-value {
+    display: block;
+    color: var(--ink);
+    font-size: 24px;
+    font-weight: 800;
+    line-height: 1.2;
+    margin-top: 5px;
+}
+.radar-kpi .k-note {
+    display: block;
+    color: var(--ink-2);
+    font-size: 12px;
+    margin-top: 4px;
+}
+[data-testid="stSidebar"] {
+    background: #eef3f8 !important;
+}
+[data-testid="stSidebar"] section {
+    padding-top: 1.4rem;
+}
+.stTextInput input,
+.stTextArea textarea,
+.stSelectbox > div > div,
+div[data-baseweb="select"] > div {
+    border-radius: 8px !important;
+    background: #fff !important;
+}
+.stButton > button,
+[data-testid="stDownloadButton"] > button {
+    border-radius: 8px !important;
+    min-height: 38px;
+    font-weight: 700;
+}
+.section-label {
+    background: transparent;
+    border-bottom: 1px solid var(--line);
+    margin-top: 24px;
+}
+.section-label .sl-title {
+    color: var(--ink);
+    font-size: 14px;
+}
+.section-label .sl-sub {
+    color: var(--ink-2);
+}
+.hero-card,
+.comp-card,
+.art-card,
+.source-row,
+.ticker-wrapper,
+.ticker-item,
+.col-card,
+.tom-card {
+    border-radius: 8px !important;
+}
+.hero-card {
+    background: #fff;
+    box-shadow: 0 16px 36px rgba(15,23,42,.07);
+    min-height: 236px;
+}
+.hero-card.hero-warn {
+    background: linear-gradient(180deg, #fff7f7, #fff);
+}
+.hero-card.hero-event {
+    background: linear-gradient(180deg, #effaf7, #fff);
+}
+.hero-card.hero-volume {
+    background: linear-gradient(180deg, #fff7ed, #fff);
+}
+.hero-card.hero-info {
+    background: linear-gradient(180deg, #eff6ff, #fff);
+}
+.hero-company {
+    font-size: 24px;
+}
+.hero-preview {
+    background: rgba(248,250,252,.92);
+}
+.comp-card {
+    background: rgba(255,255,255,.94);
+    border: 1px solid var(--line);
+    box-shadow: 0 10px 24px rgba(15,23,42,.045);
+    min-height: 142px;
+}
+.comp-card:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 16px 34px rgba(15,23,42,.08);
+}
+.comp-tint-neg {
+    background: linear-gradient(180deg, #fff5f5, #fff);
+}
+.comp-tint-pos {
+    background: linear-gradient(180deg, #effaf7, #fff);
+}
+.comp-card-selected {
+    box-shadow: 0 0 0 2px rgba(15,118,110,.2), 0 16px 34px rgba(15,23,42,.08);
+}
+.comp-ind-chip,
+.kw-chip,
+.art-kw,
+.comp-detail-cat {
+    background: #f8fafc;
+}
+.comp-detail-head {
+    background: #fff;
+    border: 1px solid var(--line);
+    border-left: 5px solid var(--accent);
+    border-radius: 8px;
+    padding: 18px 20px;
+}
+.art-card {
+    background: #fff;
+    border: 1px solid var(--line);
+    margin-bottom: 8px;
+}
+.art-card:hover {
+    background: #f8fafc;
+}
+.sent-pill-pos,
+.sent-badge-positive { background: #e7f6ef; color: #137a3f; }
+.sent-pill-neg,
+.sent-badge-negative { background: #fff1f2; color: #be123c; }
+.sent-pill-neu,
+.sent-badge-neutral { background: #eef2f7; color: #64748b; }
+@media (max-width: 900px) {
+    .main-header .hdr-row {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+    .radar-summary {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+@media (max-width: 560px) {
+    .block-container {
+        padding-left: 1rem;
+        padding-right: 1rem;
+    }
+    .main-header h1 {
+        font-size: 22px;
+    }
+    .radar-summary {
+        grid-template-columns: 1fr;
+    }
+}
+
 </style>
 """
 st.markdown(GLOBAL_CSS, unsafe_allow_html=True)
@@ -1008,6 +1229,40 @@ else:
     if not sents or len(sents) != len(articles):
         sents = [sentiment_classifier.classify(a.title, a.summary_raw) for a in articles]
         st.session_state.sentiments = sents
+
+    pos_total = sum(1 for s in sents if s.label == "positive")
+    neg_total = sum(1 for s in sents if s.label == "negative")
+    neu_total = sum(1 for s in sents if s.label == "neutral")
+    sources_total = len({getattr(a, "source", "") for a in articles if getattr(a, "source", "")})
+    last_refresh = st.session_state.get("last_refresh")
+    last_refresh_label = last_refresh.strftime("%H:%M") if last_refresh else "대기"
+    st.markdown(
+        f"""
+        <div class="radar-summary">
+            <div class="radar-kpi">
+                <span class="k-label">Collected</span>
+                <span class="k-value">{len(articles)}</span>
+                <span class="k-note">최근 수집 기사</span>
+            </div>
+            <div class="radar-kpi">
+                <span class="k-label">Risk Signals</span>
+                <span class="k-value">{neg_total}</span>
+                <span class="k-note">부정 이슈 후보</span>
+            </div>
+            <div class="radar-kpi">
+                <span class="k-label">Positive Signals</span>
+                <span class="k-value">{pos_total}</span>
+                <span class="k-note">긍정/기회 신호</span>
+            </div>
+            <div class="radar-kpi">
+                <span class="k-label">Sources</span>
+                <span class="k-value">{sources_total}</span>
+                <span class="k-note">업데이트 {last_refresh_label} · 중립 {neu_total}</span>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
     # 기업별 그룹핑
     company_articles: dict[str, list] = {}   # name -> [(idx, article, sentiment), ...]
