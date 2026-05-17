@@ -1307,13 +1307,13 @@ if articles and llm_active and backend:
         # title 먼저 모으고, summary 뒤로 (cap 안에서 title 우선 처리)
         title_items: list[dict] = []
         summary_items: list[dict] = []
+        # Title-only 우선 번역 — summary는 lazy (상세 패널 진입 시 on-demand)
         for i, a in enumerate(articles):
-            for field in ("title", "summary_raw"):
+            for field in ("title",):   # title만
                 txt = getattr(a, field, "") or ""
                 if not txt.strip():
                     continue
-                lang = translator.detect_lang(txt)
-                if lang == target_lang:
+                if translator.should_skip(txt, target_lang):
                     continue
                 h = translator.text_hash(txt, target_lang)
                 if h in cache:
@@ -1321,21 +1321,27 @@ if articles and llm_active and backend:
                 bucket = title_items if field == "title" else summary_items
                 bucket.append({"id": f"{i}_{field}", "text": txt[:400], "_hash": h})
 
-        to_translate = (title_items + summary_items)[:LAZY_TRANSLATE_MAX]
+        to_translate = title_items[:LAZY_TRANSLATE_MAX]
 
         if to_translate:
+            # 번역에는 더 작고 빠른 8b 모델 사용 (TPM 30000, 70b는 12000)
+            _translation_model = (
+                translator.PREFERRED_MODEL_GROQ
+                if backend == "groq"
+                else st.session_state.get("model_name", "")
+            )
             def _chat_fn(messages):
                 return gemma_client.chat(
                     messages,
                     backend=backend,
-                    model=st.session_state.get("model_name", ""),
+                    model=_translation_model,
                     base_url=st.session_state.get("ollama_url", ""),
                     api_key=st.session_state.get("llm_api_key", ""),
                     temperature=0.2,
                 )
             _spinner_msg = (
-                f"기사 {len(to_translate)}건 {translator.LANG_NAME[target_lang]}로 번역 중... "
-                f"(나머지 {max(0, len(title_items)+len(summary_items) - LAZY_TRANSLATE_MAX)}건은 다음 로드에서)"
+                f"기사 제목 {len(to_translate)}건 {translator.LANG_NAME[target_lang]}로 번역 중... "
+                f"(요약은 상세 패널에서 on-demand 번역)"
             )
             with st.spinner(_spinner_msg):
                 try:
@@ -1353,7 +1359,21 @@ if articles and llm_active and backend:
                 cache[it["_hash"]] = translated
             st.session_state.translation_cache = cache
 
-        # 각 article에 _localized 필드 부여 (캐시 있으면 번역, 없으면 원문)
+        # 각 article에 _localized 필드 부여 (title은 캐시 또는 원문, summary는 항상 원문 — on-demand 번역)
+        for i, a in enumerate(articles):
+            # title
+            t_txt = getattr(a, "title", "") or ""
+            if not t_txt.strip():
+                a.title_localized = ""
+            elif translator.should_skip(t_txt, target_lang):
+                a.title_localized = t_txt
+            else:
+                t_h = translator.text_hash(t_txt, target_lang)
+                a.title_localized = cache.get(t_h) or translator.cache_get(t_h) or t_txt
+            # summary — 항상 원문 유지 (lazy: 상세 진입 시 on-demand)
+            a.summary_raw_localized = getattr(a, "summary_raw", "") or ""
+        # 종료 (이전 for field 루프 제거)
+        _legacy_skip = """  # noqa: 아래 elif/else 제거되었음
         for i, a in enumerate(articles):
             for field in ("title", "summary_raw"):
                 txt = getattr(a, field, "") or ""
@@ -1365,6 +1385,7 @@ if articles and llm_active and backend:
                 else:
                     h = translator.text_hash(txt, target_lang)
                     setattr(a, f"{field}_localized", cache.get(h, txt))
+        """  # end _legacy_skip
         st.session_state.translated_signature = sig
 else:
     # LLM 비활성이면 원문 그대로
