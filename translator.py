@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import hashlib
 import re
+import time
 from typing import Callable
 
 
@@ -69,23 +70,38 @@ def translate_batch(
     items: list[dict],
     target_lang: str,
     chat_fn: Callable[[list[dict]], str],
-    batch_size: int = 10,
+    batch_size: int = 5,
     max_chars_per_item: int = 400,
+    sleep_between_batches: float = 0.5,
+    max_items: int | None = None,
+    progress_cb: Callable[[int, int], None] | None = None,
 ) -> list[dict]:
-    """items: [{"id": "0", "text": "..."}, ...]
+    """Batch translate items via chat_fn.
+
+    items: [{"id": "0", "text": "..."}, ...]
     target_lang: "ko" | "en"
     chat_fn(messages) -> response string (OpenAI/Groq 호환).
+
+    Improvements vs v1:
+      - batch_size 기본 10 → 5 (Groq TPM 친화적)
+      - 배치 간 sleep_between_batches 초 대기 (rate-limit 완화)
+      - 429 에러 발생 시 exponential backoff (1, 2, 4, 8초) 후 batch 재시도
+      - max_items: 한 호출에서 최대 처리할 항목 수 (lazy translation 용)
+      - progress_cb(done, total): 진행률 콜백
 
     실패한 항목은 원문 그대로 반환.
     """
     if not items or target_lang not in LANG_NAME:
         return items
 
+    work_items = items if max_items is None else items[:max_items]
     out_by_id: dict[str, str] = {}
     sys_prompt = _system_prompt(target_lang)
+    total = len(work_items)
+    done = 0
 
-    for start in range(0, len(items), batch_size):
-        chunk = items[start:start + batch_size]
+    for start in range(0, total, batch_size):
+        chunk = work_items[start:start + batch_size]
         lines = []
         for it in chunk:
             txt = (it.get("text") or "").strip().replace("\n", " ")
@@ -93,17 +109,38 @@ def translate_batch(
                 txt = txt[:max_chars_per_item] + "..."
             lines.append(f"[{it['id']}] {txt}")
         user_msg = "\n".join(lines)
-        try:
-            resp = chat_fn([
-                {"role": "system", "content": sys_prompt},
-                {"role": "user",   "content": user_msg},
-            ])
-            parsed = _parse_response(resp or "")
-            for it in chunk:
-                if it["id"] in parsed:
-                    out_by_id[it["id"]] = parsed[it["id"]]
-        except Exception:
-            continue   # 실패 항목 silent skip
+        # Backoff retry for 429
+        for attempt, backoff in enumerate([0, 1, 2, 4, 8]):
+            if backoff > 0:
+                time.sleep(backoff)
+            try:
+                resp = chat_fn([
+                    {"role": "system", "content": sys_prompt},
+                    {"role": "user",   "content": user_msg},
+                ])
+                parsed = _parse_response(resp or "")
+                for it in chunk:
+                    if it["id"] in parsed:
+                        out_by_id[it["id"]] = parsed[it["id"]]
+                break  # 성공 — exit retry loop
+            except Exception as e:
+                msg = str(e).lower()
+                # 429 또는 rate limit 키워드면 backoff 후 재시도
+                if ("429" in msg) or ("rate limit" in msg) or ("rate_limit" in msg) or ("tpm" in msg):
+                    if attempt < 4:  # 마지막 시도 아니면 retry
+                        continue
+                # 그 외 에러: 이 배치 포기 (원문 fallback)
+                break
+
+        done += len(chunk)
+        if progress_cb is not None:
+            try:
+                progress_cb(done, total)
+            except Exception:
+                pass
+        # 마지막 배치가 아니면 sleep
+        if start + batch_size < total and sleep_between_batches > 0:
+            time.sleep(sleep_between_batches)
 
     # 결과 매핑: 번역 있으면 사용, 없으면 원문 그대로
     return [

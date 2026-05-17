@@ -13,6 +13,7 @@
 from __future__ import annotations
 
 import json
+import time
 from typing import Iterator, Optional
 
 import requests
@@ -200,7 +201,20 @@ def chat_stream(
 # ---------------------------------------------------------------------------
 # Groq (OpenAI 호환)
 # ---------------------------------------------------------------------------
-def _chat_groq(messages, model, api_key, temperature, timeout) -> str:
+# Groq fallback 순서 — 큰 모델부터 작은 모델로
+GROQ_FALLBACK_CHAIN = [
+    "llama-3.3-70b-versatile",   # 1차 (강력하나 TPM 작음)
+    "llama-3.1-8b-instant",      # 2차 (TPM 큼, 빠름)
+    "gemma2-9b-it",              # 3차
+]
+
+
+def _post_groq_once(model, messages, api_key, temperature, timeout):
+    """Groq 단일 호출 — (status_code, response_or_text, retry_after_sec).
+
+    raises LLMError only on non-recoverable errors (network/auth).
+    For 429/5xx, returns the response info so caller can decide.
+    """
     payload = {
         "model": model,
         "messages": messages,
@@ -213,16 +227,67 @@ def _chat_groq(messages, model, api_key, temperature, timeout) -> str:
     }
     try:
         r = requests.post(GROQ_URL, json=payload, headers=headers, timeout=timeout)
-        r.raise_for_status()
     except requests.RequestException as exc:
-        body = ""
-        try:
-            body = exc.response.text[:200] if exc.response is not None else ""
-        except Exception:
-            pass
-        raise LLMError(f"Groq 요청 실패: {exc} {body}") from exc
-    data = r.json()
-    return ((data.get("choices") or [{}])[0].get("message") or {}).get("content", "").strip()
+        raise LLMError(f"Groq 네트워크 실패: {exc}") from exc
+    retry_after = 0.0
+    try:
+        retry_after = float(r.headers.get("retry-after", "0") or "0")
+    except Exception:
+        retry_after = 0.0
+    if r.status_code == 200:
+        return 200, r.json(), 0.0
+    return r.status_code, r.text[:400], retry_after
+
+
+def _chat_groq(messages, model, api_key, temperature, timeout) -> str:
+    """Groq chat completion w/ 429 자동 fallback + retry.
+
+    Strategy:
+      1) Try requested model
+      2) On 429: walk fallback chain (skip already-tried), each smaller model
+      3) If entire chain hits 429: sleep min(retry_after, 10s) and retry chain once
+      4) If still 429: raise LLMError("Groq rate limit") with clear message
+    """
+    # Start from requested model, then continue down the chain
+    tried: list[str] = []
+    queue = [model] if model else []
+    for m in GROQ_FALLBACK_CHAIN:
+        if m not in queue:
+            queue.append(m)
+
+    last_status, last_text, last_retry = None, "", 0.0
+
+    for attempt_round in range(2):  # 2번 round (첫 round, wait 후 second round)
+        for m in queue:
+            if m in tried:
+                continue
+            status, body_or_data, retry_after = _post_groq_once(m, messages, api_key, temperature, timeout)
+            tried.append(m)
+            if status == 200:
+                content = ((body_or_data.get("choices") or [{}])[0].get("message") or {}).get("content", "").strip()
+                # 첫 모델이 아니면 fallback 표기 (optional)
+                if attempt_round > 0 or m != (model or GROQ_DEFAULT_MODEL):
+                    # 응답 앞에 [모델 표기] 주석 (silent — 일부 호출 경로는 raw 응답 필요하니 추가 X)
+                    pass
+                return content
+            if status == 429:
+                last_status, last_text, last_retry = 429, body_or_data, retry_after
+                continue  # 다음 모델 시도
+            # 4xx/5xx other: raise immediately
+            raise LLMError(f"Groq 요청 실패 (HTTP {status}): {body_or_data}")
+
+        # 한 round 다 돌았으면 (모두 429): wait
+        if attempt_round == 0:
+            tried = []  # 다음 round 위해 reset
+            wait_s = min(max(last_retry, 0), 15)
+            if wait_s <= 0:
+                wait_s = 10.0  # default
+            time.sleep(wait_s)
+
+    # 두 round 다 실패
+    raise LLMError(
+        f"Groq rate limit (429): {last_text[:200] if last_text else 'TPM 초과. 잠시 후 다시 시도'}"
+    )
 
 
 # ---------------------------------------------------------------------------

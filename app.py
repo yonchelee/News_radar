@@ -1164,13 +1164,17 @@ target_lang = st.session_state.get("target_lang", "ko")
 llm_active = st.session_state.get("llm_active", False)
 backend = st.session_state.get("llm_backend", "")
 
+# Lazy translation: 한 번에 최대 N 건만 번역, 나머지는 원문 노출 (cache가 다음 reload에서 채움)
+# Title 우선 (제목만 보면 70% 이해 가능), summary는 차순위
+LAZY_TRANSLATE_MAX = 120   # 한 페이지 load당 최대 번역 항목 (Groq TPM 보호)
+
 if articles and llm_active and backend:
-    # 번역 시그니처 — articles 수 + target_lang. 바뀌면 재번역
     sig = f"{len(articles)}:{target_lang}"
     if st.session_state.get("translated_signature") != sig:
-        # 번역 필요 항목 collect (다른 언어 + 캐시 없는 것)
         cache = st.session_state.translation_cache
-        to_translate: list[dict] = []
+        # title 먼저 모으고, summary 뒤로 (cap 안에서 title 우선 처리)
+        title_items: list[dict] = []
+        summary_items: list[dict] = []
         for i, a in enumerate(articles):
             for field in ("title", "summary_raw"):
                 txt = getattr(a, field, "") or ""
@@ -1182,7 +1186,10 @@ if articles and llm_active and backend:
                 h = translator.text_hash(txt, target_lang)
                 if h in cache:
                     continue
-                to_translate.append({"id": f"{i}_{field}", "text": txt[:400], "_hash": h})
+                bucket = title_items if field == "title" else summary_items
+                bucket.append({"id": f"{i}_{field}", "text": txt[:400], "_hash": h})
+
+        to_translate = (title_items + summary_items)[:LAZY_TRANSLATE_MAX]
 
         if to_translate:
             def _chat_fn(messages):
@@ -1194,16 +1201,27 @@ if articles and llm_active and backend:
                     api_key=st.session_state.get("llm_api_key", ""),
                     temperature=0.2,
                 )
-            with st.spinner(f"기사 {len(to_translate)}건 {translator.LANG_NAME[target_lang]}로 번역 중..."):
-                results = translator.translate_batch(to_translate, target_lang, _chat_fn, batch_size=10)
-            # 결과 캐시 저장
+            _spinner_msg = (
+                f"기사 {len(to_translate)}건 {translator.LANG_NAME[target_lang]}로 번역 중... "
+                f"(나머지 {max(0, len(title_items)+len(summary_items) - LAZY_TRANSLATE_MAX)}건은 다음 로드에서)"
+            )
+            with st.spinner(_spinner_msg):
+                try:
+                    results = translator.translate_batch(
+                        to_translate, target_lang, _chat_fn, batch_size=5,
+                        sleep_between_batches=0.3,
+                    )
+                except Exception as _e:
+                    # 번역 실패해도 앱 진행
+                    st.warning(f"일부 번역 실패 (rate limit 가능성): 원문으로 표시. {_e}")
+                    results = [{"id": it["id"], "text": it["text"]} for it in to_translate]
             id_to_result = {r["id"]: r["text"] for r in results}
             for it in to_translate:
                 translated = id_to_result.get(it["id"], it["text"])
                 cache[it["_hash"]] = translated
             st.session_state.translation_cache = cache
 
-        # 각 article에 _localized 필드 부여
+        # 각 article에 _localized 필드 부여 (캐시 있으면 번역, 없으면 원문)
         for i, a in enumerate(articles):
             for field in ("title", "summary_raw"):
                 txt = getattr(a, field, "") or ""
@@ -1639,29 +1657,51 @@ else:
                 st.session_state.selected_company = None
                 st.rerun()
             if st.session_state.get("llm_active") and dcol2.button(f"{selected_company} 종합 분석", key="comp_synth", use_container_width=True):
-                with st.spinner(f"{selected_company} 관련 {total}건을 LLM이 종합 분석 중..."):
+                # 균형 선택: pos top 3 + neg top 3 + neu top 4 = 10건 (sentiment score 절대값 큰 순)
+                _pos_arts = sorted(
+                    [(i, a, s) for i, a, s in sel_arr if s.label == "positive"],
+                    key=lambda x: -abs(x[2].score),
+                )[:3]
+                _neg_arts = sorted(
+                    [(i, a, s) for i, a, s in sel_arr if s.label == "negative"],
+                    key=lambda x: -abs(x[2].score),
+                )[:3]
+                _neu_arts = [(i, a, s) for i, a, s in sel_arr if s.label == "neutral"][:4]
+                picked = _pos_arts + _neg_arts + _neu_arts
+                if not picked:
+                    picked = sel_arr[:10]
+
+                with st.spinner(f"{selected_company} 관련 핵심 {len(picked)}건을 LLM이 분석 중..."):
                     titles_summary = "\n".join(
-                        f"- [{s.label_ko}] {getattr(a, 'title_localized', None) or a.title}: {(getattr(a, 'summary_raw_localized', None) or a.summary_raw or '')[:150]}"
-                        for _, a, s in sel_arr[:20]
+                        f"- [{s.label_ko}] {(getattr(a, 'title_localized', None) or a.title)[:120]}: "
+                        f"{(getattr(a, 'summary_raw_localized', None) or a.summary_raw or '')[:100]}"
+                        for _, a, s in picked
                     )
                     try:
                         synth = gemma_client.chat(
                             [
                                 {"role": "system", "content": (
-                                    f"너는 시니어 기구개발 엔지니어로서 {selected_company} 관련 최근 뉴스를 분석한다. "
-                                    "긍정/부정 비율과 핵심 이슈를 한국어로 3~4 단락으로 요약. "
-                                    "리스크 관점 + 기회 관점 모두 다룬다."
+                                    f"{selected_company} 관련 최근 뉴스 핵심 분석. "
+                                    "한국어 3단락: ①핵심 동향, ②리스크, ③기회. 각 단락 2-3문장."
                                 )},
-                                {"role": "user", "content": f"{selected_company} 관련 최근 기사:\n{titles_summary}"},
+                                {"role": "user", "content": f"{selected_company} 기사:\n{titles_summary}"},
                             ],
                             backend=st.session_state.llm_backend,
                             model=st.session_state.model_name,
                             base_url=st.session_state.ollama_url,
                             api_key=st.session_state.get("llm_api_key", ""),
+                            temperature=0.3,
                         )
                         st.session_state[f"comp_synth_{selected_company}"] = synth
                     except Exception as e:
-                        st.error(f"분석 실패: {e}")
+                        _msg = str(e)
+                        if "429" in _msg or "rate" in _msg.lower():
+                            st.error(
+                                f"AI 요청량이 많아 잠시 후 다시 시도해 주세요. "
+                                f"(Groq Rate Limit — 30초 후 자동 가능)"
+                            )
+                        else:
+                            st.error(f"분석 실패: {_msg[:200]}")
 
             synth = st.session_state.get(f"comp_synth_{selected_company}")
             if synth:
