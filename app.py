@@ -20,6 +20,7 @@ import company_extractor
 import top_of_mind
 import topic_classifier
 import translator
+import dashboard_components as dc
 from ppt_generator import build_pptx
 
 
@@ -967,6 +968,122 @@ div[data-baseweb="select"] > div {
     }
 }
 
+/* === 대시보드 페이지 (chart grid) === */
+.dash-kpi {
+    background: #ffffff;
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 14px 16px;
+    box-shadow: 0 1px 3px rgba(0,0,0,.04);
+    min-height: 90px;
+}
+.dash-kpi .kpi-label {
+    font-size: 11px; font-weight: 600;
+    text-transform: uppercase; letter-spacing: .06em;
+    color: var(--ink-3);
+}
+.dash-kpi .kpi-value {
+    font-size: 28px; font-weight: 800;
+    letter-spacing: -.018em;
+    color: var(--ink);
+    margin-top: 4px;
+    line-height: 1.1;
+}
+.dash-kpi .kpi-sub {
+    font-size: 11.5px;
+    color: var(--ink-2);
+    margin-top: 4px;
+}
+.dash-card {
+    background: #ffffff;
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 16px;
+    box-shadow: 0 1px 3px rgba(0,0,0,.04);
+    margin-bottom: 12px;
+}
+.dash-card-title {
+    font-size: 12.5px; font-weight: 700;
+    text-transform: uppercase; letter-spacing: .06em;
+    color: var(--ink-2);
+    margin-bottom: 10px;
+}
+
+/* === 키워드 클라우드 === */
+.kw-cloud {
+    display: flex; flex-wrap: wrap; align-items: center;
+    gap: 6px 10px;
+    line-height: 1.5;
+    padding: 6px 2px;
+}
+.kw-cloud-item {
+    display: inline-block;
+    transition: transform .15s;
+}
+.kw-cloud-item:hover { transform: scale(1.06); }
+.kw-cloud-empty { color: var(--ink-3); font-size: 12px; text-align: center; padding: 20px; }
+
+/* === 실시간 뉴스 피드 === */
+.rt-feed {
+    display: flex; flex-direction: column; gap: 0;
+    max-height: 320px; overflow-y: auto;
+}
+.rt-feed-row {
+    display: flex; gap: 10px; align-items: flex-start;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--line-soft);
+}
+.rt-feed-row:last-child { border-bottom: 0; }
+.rt-feed-time {
+    font-size: 10.5px; color: var(--ink-3);
+    white-space: nowrap; padding-top: 2px;
+    min-width: 48px;
+}
+.rt-feed-body { flex: 1; min-width: 0; }
+.rt-feed-title { font-size: 12.5px; line-height: 1.4; color: var(--ink); }
+.rt-feed-title a { color: inherit; text-decoration: none; }
+.rt-feed-title a:hover { color: var(--accent); }
+.rt-feed-new {
+    display: inline-block;
+    font-size: 9px; font-weight: 700;
+    background: var(--accent); color: #fff;
+    padding: 1px 5px; border-radius: 4px;
+    margin-left: 6px; vertical-align: 1px;
+}
+.rt-feed-meta {
+    margin-top: 3px; font-size: 10.5px;
+    display: flex; gap: 6px; align-items: center;
+}
+.rt-feed-src { color: var(--ink-3); }
+.rt-feed-sent {
+    font-size: 10px; padding: 1px 5px; border-radius: 4px;
+    background: var(--surface); color: var(--ink-2);
+}
+.rt-feed-sent-positive { background: #e8f9ed; color: #1a8a36; }
+.rt-feed-sent-negative { background: #fdebeb; color: #c43e3e; }
+.rt-feed-empty { color: var(--ink-3); text-align: center; padding: 16px; font-size: 12px; }
+
+/* === 감성 분포 (mini stat) === */
+.sent-dist { display: flex; flex-direction: column; gap: 10px; padding: 6px 0; }
+.sent-dist-row { display: flex; align-items: center; gap: 10px; font-size: 12.5px; }
+.sent-dist-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+.sent-dist-label { color: var(--ink); flex: 1; }
+.sent-dist-count { font-weight: 700; color: var(--ink); }
+.sent-dist-bar {
+    display: flex; height: 8px; border-radius: 4px;
+    overflow: hidden; background: var(--surface);
+    margin-top: 6px;
+}
+.sent-dist-bar > div { height: 100%; }
+
+/* === 사이드바 네비게이션 === */
+.nav-section-label {
+    font-size: 10.5px; font-weight: 700;
+    text-transform: uppercase; letter-spacing: .08em;
+    color: var(--ink-3);
+    margin: 4px 0 6px;
+}
+
 </style>
 """
 st.markdown(GLOBAL_CSS, unsafe_allow_html=True)
@@ -1014,6 +1131,21 @@ _init_state()
 # 사이드바: 환경설정
 # ---------------------------------------------------------------------------
 with st.sidebar:
+
+    # ---- 네비게이션 메뉴 ----
+    NAV_PAGES = ["대시보드", "실시간 뉴스", "감성 분석", "키워드", "리포트", "알림 설정", "설정"]
+    if "nav_page" not in st.session_state:
+        st.session_state.nav_page = "대시보드"
+    st.markdown("<div class='nav-section-label'>메뉴</div>", unsafe_allow_html=True)
+    _nav_choice = st.radio(
+        "메뉴",
+        NAV_PAGES,
+        index=NAV_PAGES.index(st.session_state.nav_page),
+        key="nav_radio",
+        label_visibility="collapsed",
+    )
+    st.session_state.nav_page = _nav_choice
+    st.markdown("---")
 
     # ---- LLM 백엔드 자동 감지 (UI 노출 없음) ----
     def _detect_backend():
@@ -1240,13 +1372,117 @@ else:
         a.title_localized = getattr(a, "title", "")
         a.summary_raw_localized = getattr(a, "summary_raw", "")
 
-if not articles:
+# sentiment 계산 (양 페이지에서 공용)
+if articles and (not sents or len(sents) != len(articles)):
+    sents = [sentiment_classifier.classify(a.title, a.summary_raw) for a in articles]
+    st.session_state.sentiments = sents
+
+nav_page = st.session_state.get("nav_page", "대시보드")
+
+# ============================================================================
+# 페이지: 대시보드 (차트 그리드)
+# ============================================================================
+if nav_page == "대시보드":
+    if not articles:
+        st.info("수집된 기사가 없습니다. 좌측 사이드바의 새로고침을 눌러주세요.")
+    else:
+        # 상단 KPI
+        pos_total = sum(1 for s in sents if s.label == "positive")
+        neg_total = sum(1 for s in sents if s.label == "negative")
+        neu_total = sum(1 for s in sents if s.label == "neutral")
+        total = len(articles)
+        sources_total = len({getattr(a, "source", "") for a in articles if getattr(a, "source", "")})
+        last_refresh = st.session_state.get("last_refresh")
+        last_refresh_label = last_refresh.strftime("%H:%M") if last_refresh else "—"
+
+        # ---- 1행: KPI 카드 4개 ----
+        kpi_cols = st.columns(4, gap="small")
+        pos_pct = pos_total * 100 // total if total else 0
+        kpi_cols[0].markdown(
+            f"<div class='dash-kpi'><div class='kpi-label'>긍정 비율</div>"
+            f"<div class='kpi-value' style='color:#34c759'>{pos_pct}%</div>"
+            f"<div class='kpi-sub'>{pos_total:,}건</div></div>",
+            unsafe_allow_html=True,
+        )
+        kpi_cols[1].markdown(
+            f"<div class='dash-kpi'><div class='kpi-label'>총 기사</div>"
+            f"<div class='kpi-value'>{total:,}</div>"
+            f"<div class='kpi-sub'>최근 업데이트 {last_refresh_label}</div></div>",
+            unsafe_allow_html=True,
+        )
+        neg_pct = neg_total * 100 // total if total else 0
+        kpi_cols[2].markdown(
+            f"<div class='dash-kpi'><div class='kpi-label'>부정 비율</div>"
+            f"<div class='kpi-value' style='color:#ff3b30'>{neg_pct}%</div>"
+            f"<div class='kpi-sub'>{neg_total:,}건</div></div>",
+            unsafe_allow_html=True,
+        )
+        kpi_cols[3].markdown(
+            f"<div class='dash-kpi'><div class='kpi-label'>매체 수</div>"
+            f"<div class='kpi-value'>{sources_total}</div>"
+            f"<div class='kpi-sub'>RSS 소스</div></div>",
+            unsafe_allow_html=True,
+        )
+
+        # ---- 2행: 큰 도넛 2개 + 실시간 피드 ----
+        row2 = st.columns([1, 1, 1.3], gap="medium")
+        with row2[0]:
+            st.markdown("<div class='dash-card'><div class='dash-card-title'>전체 감성</div>", unsafe_allow_html=True)
+            st.plotly_chart(dc.build_total_sentiment_donut(sents), use_container_width=True, config={"displayModeBar": False})
+            st.markdown("</div>", unsafe_allow_html=True)
+        with row2[1]:
+            st.markdown("<div class='dash-card'><div class='dash-card-title'>전체 뉴스</div>", unsafe_allow_html=True)
+            st.plotly_chart(dc.build_news_total_donut(sents, change_pct=None), use_container_width=True, config={"displayModeBar": False})
+            st.markdown("</div>", unsafe_allow_html=True)
+        with row2[2]:
+            st.markdown(
+                "<div class='dash-card'><div class='dash-card-title'>실시간 뉴스 알림</div>"
+                + dc.build_realtime_feed_html(articles, sents, limit=6) + "</div>",
+                unsafe_allow_html=True,
+            )
+
+        # ---- 3행: 감성 추이 라인 (full width) ----
+        st.markdown("<div class='dash-card'><div class='dash-card-title'>감성 추이 (최근 24시간)</div>", unsafe_allow_html=True)
+        st.plotly_chart(dc.build_sentiment_trend_line(articles, sents), use_container_width=True, config={"displayModeBar": False})
+        st.markdown("</div>", unsafe_allow_html=True)
+
+        # ---- 4행: 키워드 클라우드 + 매체 TOP 5 + 감성 분포 ----
+        row4 = st.columns([1.4, 1, 1], gap="medium")
+        with row4[0]:
+            st.markdown(
+                "<div class='dash-card'><div class='dash-card-title'>주요 키워드</div>"
+                + dc.build_keyword_cloud_html(sents) + "</div>",
+                unsafe_allow_html=True,
+            )
+        with row4[1]:
+            st.markdown("<div class='dash-card'><div class='dash-card-title'>뉴스 매체 TOP 5</div>", unsafe_allow_html=True)
+            st.plotly_chart(dc.build_source_top5_bar(articles), use_container_width=True, config={"displayModeBar": False})
+            st.markdown("</div>", unsafe_allow_html=True)
+        with row4[2]:
+            st.markdown(
+                "<div class='dash-card'><div class='dash-card-title'>감성 분포</div>"
+                + dc.build_sentiment_distribution_html(sents) + "</div>",
+                unsafe_allow_html=True,
+            )
+
+# ============================================================================
+# 페이지: 감성 분석 / 키워드 / 리포트 / 알림 설정 / 설정 — placeholder
+# ============================================================================
+elif nav_page in ("감성 분석", "키워드", "리포트", "알림 설정", "설정"):
+    st.markdown(f"<div class='dash-card' style='padding:40px;text-align:center'>"
+                f"<div class='dash-card-title' style='font-size:18px'>{nav_page}</div>"
+                f"<p style='color:#8a8a8a;margin-top:14px'>준비 중인 페이지입니다.</p>"
+                f"<p style='color:#8a8a8a'>대시보드 또는 실시간 뉴스 페이지를 이용해주세요.</p>"
+                f"</div>", unsafe_allow_html=True)
+
+# ============================================================================
+# 페이지: 실시간 뉴스 (기존 회사 중심 대시보드)
+# ============================================================================
+elif nav_page == "실시간 뉴스":
+ if not articles:
     st.info("수집된 기사가 없습니다. 좌측 사이드바의 새로고침을 눌러주세요.")
-else:
-    # sentiment 계산 (캐시)
-    if not sents or len(sents) != len(articles):
-        sents = [sentiment_classifier.classify(a.title, a.summary_raw) for a in articles]
-        st.session_state.sentiments = sents
+ else:
+    pass  # SENTINEL_INDENT_FIX
 
     pos_total = sum(1 for s in sents if s.label == "positive")
     neg_total = sum(1 for s in sents if s.label == "negative")
