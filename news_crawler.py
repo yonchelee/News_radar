@@ -190,10 +190,22 @@ def _matches_filter(text: str) -> bool:
 # ---------------------------------------------------------------------------
 # Source fetchers
 # ---------------------------------------------------------------------------
-def _fetch_rss_generic(src: Source, max_entries: int = 50) -> list[Article]:
-    """일반 RSS 소스 fetcher."""
+# Per-source hard timeout (slow source가 전체 fetch를 막지 않도록)
+FETCH_TIMEOUT_SEC = 8
+
+
+def _fetch_rss_generic(src: Source, max_entries: int = 30) -> list[Article]:
+    """일반 RSS 소스 fetcher — 8초 hard timeout."""
     try:
-        feed = feedparser.parse(src.url, agent=DEFAULT_AGENT)
+        # feedparser.parse는 직접 timeout 미지원 → requests로 본문 받고 파싱
+        resp = requests.get(
+            src.url, timeout=FETCH_TIMEOUT_SEC,
+            headers={"User-Agent": DEFAULT_AGENT},
+            allow_redirects=True,
+        )
+        if resp.status_code != 200:
+            return []
+        feed = feedparser.parse(resp.content)
     except Exception:
         return []
     out: list[Article] = []
@@ -232,7 +244,13 @@ def _fetch_google_news(max_per_keyword: int = 5) -> list[Article]:
     for kw in SEARCH_KEYWORDS:
         url = GOOGLE_NEWS_RSS.format(query=urllib.parse.quote(kw))
         try:
-            feed = feedparser.parse(url, agent=DEFAULT_AGENT)
+            resp = requests.get(
+                url, timeout=FETCH_TIMEOUT_SEC,
+                headers={"User-Agent": DEFAULT_AGENT},
+            )
+            if resp.status_code != 200:
+                continue
+            feed = feedparser.parse(resp.content)
         except Exception:
             continue
         for entry in feed.entries[:max_per_keyword]:
@@ -279,7 +297,7 @@ _CACHE_TTL_SEC = 60 * 60  # 1시간
 def get_cached_articles(
     force_refresh: bool = False,
     sources: list[str] | None = None,
-    max_parallel: int = 8,
+    max_parallel: int = 16,
 ) -> list[Article]:
     """다중 소스 병렬 fetch + 통합 캐시."""
     sources = sources or list(SOURCES.keys())
